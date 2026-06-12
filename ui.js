@@ -186,9 +186,11 @@ const UI = {
       row.appendChild(div);
     });
 
-    // hand
+    // hand — fan layout
     const hand = $("#hand");
     hand.innerHTML = "";
+    const total = b.hand.length;
+    const maxAngle = Math.min(28, total * 4);
     b.hand.forEach((cardId, i) => {
       const card = getCardById(cardId);
       const playable = Engine.canPlay(cardId);
@@ -197,6 +199,20 @@ const UI = {
         onClick: () => { if (Engine.canPlay(cardId)) Engine.playCard(i); },
       });
       if (!playable) el.classList.add("unplayable");
+      // fan angle: spread from -maxAngle/2 to +maxAngle/2
+      const mid = (total - 1) / 2;
+      const angle = total > 1 ? ((i - mid) / mid) * (maxAngle / 2) : 0;
+      const yOff  = total > 1 ? Math.abs(i - mid) * 6 : 0;
+      el.style.setProperty("--fan-angle", `${angle}deg`);
+      el.style.transform = `rotate(${angle}deg) translateY(${yOff}px)`;
+      el.addEventListener("mouseenter", () => {
+        el.style.transform = `translateY(-32px) scale(1.1)`;
+        el.style.zIndex = "20";
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.transform = `rotate(${angle}deg) translateY(${yOff}px)`;
+        el.style.zIndex = "";
+      });
       hand.appendChild(el);
     });
   },
