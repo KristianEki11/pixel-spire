@@ -16,6 +16,7 @@ const Game = {
       unlockedCards: STARTING_UNLOCKS.slice(),
       deck: STARTING_DECK.slice(),
       cardUpgrades: {},            // { cardId: level }
+      relics: [],                  // player acquired relics
       stageIndex: 0,               // next stage to play in STAGES
       clearedStages: [],           // stage ids
       shopOffers: null,            // current 3 shop unlock offers
@@ -30,6 +31,7 @@ const Game = {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
       this.state = JSON.parse(raw);
+      if (!this.state.relics) this.state.relics = [];
       return true;
     } catch (e) { return false; }
   },
@@ -81,6 +83,7 @@ const Game = {
     const s = this.state;
     s.stageIndex = 0; s.clearedStages = []; s.gameComplete = false;
     s.hp = s.maxHp;
+    s.relics = [];
     this.rollShopOffers();
     this.save();
   },
@@ -134,6 +137,15 @@ const Game = {
     if (this.state.currency < price) return false;
     this.state.currency -= price;
     this.state.cardUpgrades[id] = (this.state.cardUpgrades[id] || 0) + 1;
+    this.save();
+    return true;
+  },
+  buyRelic(id) {
+    const price = id === "hellfire_stone" ? 120 : 150;
+    if (this.state.currency < price || (this.state.relics && this.state.relics.includes(id))) return false;
+    if (!this.state.relics) this.state.relics = [];
+    this.state.currency -= price;
+    this.state.relics.push(id);
     this.save();
     return true;
   },

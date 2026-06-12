@@ -2,7 +2,7 @@
 
 **A Browser-Based Deck-Building Roguelite Card Game**
 
-[![GitHub Pages](https://img.shields.io/badge/Play%20Now-GitHub%20Pages-brightgreen?style=for-the-badge&logo=github)](https://KristianEki11.github.io/game-card)
+[![GitHub Pages](https://img.shields.io/badge/Play%20Now-GitHub%20Pages-brightgreen?style=for-the-badge&logo=github)](https://KristianEki11.github.io/pixel-spire)
 [![JavaScript](https://img.shields.io/badge/JavaScript-Vanilla-yellow?style=for-the-badge&logo=javascript)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![CSS](https://img.shields.io/badge/CSS-Pixel%20Art-blue?style=for-the-badge&logo=css3)](https://developer.mozilla.org/en-US/docs/Web/CSS)
 
@@ -10,7 +10,7 @@
 
 ## 🎮 Play Now
 
-👉 **[https://KristianEki11.github.io/game-card](https://KristianEki11.github.io/game-card)**
+👉 **[https://KristianEki11.github.io/pixel-spire](https://KristianEki11.github.io/pixel-spire)**
 
 No installation required. Runs entirely in your browser. Progress is auto-saved.
 
@@ -28,13 +28,13 @@ Inspired by *Slay the Spire* and built with zero dependencies using pure Vanilla
 
 | Feature | Details |
 |---------|---------|
-| 🃏 **51 Unique Cards** | Common, Rare, Epic, and Legendary — each with upgrade scaling |
+| 🃏 **56 Unique Cards** | Common, Rare, Epic, and Legendary — each with upgrade scaling |
 | 👹 **18 Enemies** | Predictable intent cycles: attack, defend, buff, debuff, heal |
 | 🗺️ **3-Act Campaign** | 24 hand-crafted stages across Whispering Forest, Crystal Caverns, Shadow Citadel |
 | 📈 **Leveling System** | Gain XP, level up, unlock more Mana and Max HP |
 | 🏪 **In-Game Shop** | Unlock cards, upgrade stats, buy HP recovery |
 | 🗃️ **Deck Editor** | Build a 15–30 card deck (max 3 copies per card) |
-| 📚 **Card Collection** | Browse all 51 cards with locked/unlocked state |
+| 📚 **Card Collection** | Browse all 56 cards with locked/unlocked state |
 | 💾 **Auto-Save** | Progress saved to `localStorage` after every action |
 | ⚔️ **Roguelite Loop** | Defeat = lose 20% gold, keep all cards & progress, revive at full HP |
 
@@ -81,12 +81,12 @@ Inspired by *Slay the Spire* and built with zero dependencies using pure Vanilla
 ```
 game-card/
 ├── index.html          — App shell: all 10 screens, script load order
-├── style.css           — Retro pixel-art styling (Press Start 2P font)
+├── style.css           — Retro pixel-art styling (Space Mono & Courier Prime fonts)
 ├── engine.js           — Combat logic, damage formula, status effects, AI
 ├── game.js             — Persistent state, leveling, shop, deck rules, save/load
 ├── ui.js               — Screen rendering, event wiring, battle animations
 └── data/
-    ├── cards.js        — 51 card definitions + rarity pricing
+    ├── cards.js        — 56 card definitions + rarity pricing
     ├── enemies.js      — 18 enemies with intent cycle patterns
     └── stages.js       — 24 stages across 3 acts with reward tables
 ```
@@ -113,10 +113,10 @@ npx serve .
 
 | Rarity | Shop Price | Count | Notes |
 |--------|-----------|-------|-------|
-| Common | ⛃ 50 | 19 | Available from start |
-| Rare | ⛃ 100 | 14 | Unlocked via stage rewards |
-| Epic | ⛃ 200 | 10 | Available Act 2+ |
-| Legendary | ⛃ 400 | 8 | Available Act 3 & Boss rewards |
+| Common | ⛃ 50 | 20 | Available from start |
+| Rare | ⛃ 100 | 16 | Unlocked via stage rewards |
+| Epic | ⛃ 200 | 11 | Available Act 2+ |
+| Legendary | ⛃ 400 | 9 | Available Act 3 & Boss rewards |
 
 ---
 
@@ -136,7 +136,7 @@ npx serve .
 ## 🛠️ Tech Stack
 
 - **HTML5** — DOM structure, semantic screen sections
-- **CSS3** — Pixel-art retro styling, `Press Start 2P` (Google Fonts), CSS animations
+- **CSS3** — Pixel-art retro styling, `Space Mono` & `Courier Prime` (Google Fonts), CSS animations
 - **JavaScript (ES5/ES6)** — No modules, no bundler — pure script-tag globals for GitHub Pages compatibility
 - **localStorage** — Client-side persistent save state
 

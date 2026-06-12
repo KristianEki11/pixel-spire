@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PIXEL SPIRE — Deck-Building Roguelite</title>
 <meta name="description" content="Pixel Spire — a retro deck-building roguelite adventure. Battle enemies, collect cards, conquer the spire!">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=1.1.0">
 </head>
 <body>
 <div id="app">
@@ -19,7 +19,7 @@
         <button id="btn-continue" class="px-btn big hidden">CONTINUE</button>
         <button id="btn-newgame" class="px-btn big">NEW GAME</button>
       </div>
-      <p class="title-hint">Progress is saved automatically</p>
+      <p class="title-hint">Progress is saved automatically | v1.1.0</p>
     </div>
   </section>
 
@@ -28,9 +28,9 @@
     <header class="topbar">
       <span id="map-act-name" class="act-name">ACT 1</span>
       <div class="topbar-stats">
-        <span id="map-player-level" class="stat">LV 1</span>
-        <span id="map-player-hp"    class="stat hp">HP 60/60</span>
-        <span id="map-currency"     class="stat gold">⛃ 0</span>
+        <span id="map-player-level-top" class="stat">LV 1</span>
+        <span id="map-player-hp-top"    class="stat hp">HP 60/60</span>
+        <span id="map-currency-top"     class="stat gold">⛃ 0</span>
       </div>
       <div class="topbar-buttons">
         <button id="btn-map-deck"       class="px-btn">DECK</button>
@@ -53,6 +53,7 @@
 
     <div id="battle-area">
       <div id="enemy-row" class="enemy-row"></div>
+      <div id="queued-cards-row" class="queued-cards-row"></div>
       <div id="player-zone" class="player-zone">
         <div class="unit player-unit" id="player-unit">
           <div class="sprite player-sprite">🧙</div>
@@ -77,8 +78,6 @@
         <button id="btn-end-turn" class="px-btn big endturn">END<br>TURN</button>
       </div>
     </div>
-
-    <div id="float-text-container"></div>
   </section>
 
   <!-- ============ REWARDS SCREEN ============ -->
@@ -95,45 +94,181 @@
   <!-- ============ DECK EDITOR ============ -->
   <section id="screen-deck" class="screen">
     <header class="topbar">
-      <span class="act-name">DECK EDITOR</span>
-      <span id="deck-count" class="stat">15/30</span>
-      <button id="btn-deck-back" class="px-btn">BACK</button>
+      <span class="act-name yellow-text" id="btn-deck-logo" style="cursor: pointer;">PIXEL SPIRE</span>
+      <div class="topbar-stats">
+        <span id="deck-player-level-top" class="stat">LV 1</span>
+        <span id="deck-player-hp-top"    class="stat hp">HP 60/60</span>
+        <span id="deck-currency-top"     class="stat gold">⛃ 0</span>
+      </div>
+      <div class="topbar-buttons">
+        <button id="btn-deck-deck"       class="px-btn active">DECK</button>
+        <button id="btn-deck-cards"      class="px-btn">CARDS</button>
+        <button id="btn-deck-shop"       class="px-btn">SHOP</button>
+        <button id="btn-deck-title"      class="px-btn">TITLE</button>
+      </div>
     </header>
     <div class="deck-scroll">
-      <p class="screen-hint">Deck: 15–30 cards, max 3 copies each. Click deck card to remove, owned card to add.</p>
-      <h3 class="section-label">CURRENT DECK</h3>
-      <div id="deck-list"  class="card-grid"></div>
-      <h3 class="section-label">OWNED CARDS</h3>
-      <div id="owned-list" class="card-grid"></div>
+      <!-- Subheader with Title and Player stats -->
+      <div class="deck-subheader">
+        <h2 class="deck-title">DECK BUILDER</h2>
+        <div class="deck-stats-box">
+          <div class="deck-stat-item lvl-xp">
+            <span class="lbl">LV. <span id="deck-player-level">1</span></span>
+            <span class="xp-val">XP: <span id="deck-player-xp">0/100</span></span>
+          </div>
+          <div class="deck-stat-item hp">
+            <span class="hp-lbl">HP</span>
+            <div class="hp-bar-outer"><div id="deck-player-hp-fill" class="hp-fill"></div></div>
+            <span class="hp-val" id="deck-player-hp">60/60</span>
+          </div>
+          <div class="deck-stat-item gold">
+            <span class="gold-star">⭐</span>
+            <span id="deck-player-gold">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Columns Layout -->
+      <div class="deck-columns">
+        <!-- Left Panel: Owned Cards -->
+        <div class="deck-panel left-panel">
+          <div class="panel-header">
+            <h3 class="panel-title-text">OWNED CARDS</h3>
+            <div class="deck-filters">
+              <button class="filter-btn active" data-filter="all">ALL</button>
+              <button class="filter-btn" data-filter="attack">ATTACK</button>
+              <button class="filter-btn" data-filter="skill">SKILL</button>
+            </div>
+          </div>
+          <div class="owned-scroll-container">
+            <div id="owned-list" class="card-grid"></div>
+          </div>
+        </div>
+
+        <!-- Right Panel: Current Deck -->
+        <div class="deck-panel right-panel">
+          <div class="panel-header">
+            <h3 class="panel-title-text">CURRENT DECK</h3>
+            <span id="deck-count" class="deck-count-val">0/30</span>
+          </div>
+          <div class="deck-list-container">
+            <div id="deck-list" class="deck-rows-list"></div>
+          </div>
+          <div class="deck-actions">
+            <button id="btn-deck-save" class="px-btn big save-btn">SAVE DECK</button>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- ============ COLLECTION ============ -->
   <section id="screen-collection" class="screen">
     <header class="topbar">
-      <span class="act-name">COLLECTION</span>
-      <span id="collection-count" class="stat">0/0</span>
-      <button id="btn-collection-back" class="px-btn">BACK</button>
+      <span class="act-name yellow-text" id="btn-collection-logo" style="cursor: pointer;">PIXEL SPIRE</span>
+      <div class="topbar-stats">
+        <span id="collection-player-level-top" class="stat">LV 1</span>
+        <span id="collection-player-hp-top"    class="stat hp">HP 60/60</span>
+        <span id="collection-currency-top"     class="stat gold">⛃ 0</span>
+      </div>
+      <div class="topbar-buttons">
+        <button id="btn-collection-deck"       class="px-btn">DECK</button>
+        <button id="btn-collection-cards"      class="px-btn active">CARDS</button>
+        <button id="btn-collection-shop"       class="px-btn">SHOP</button>
+        <button id="btn-collection-title"      class="px-btn">TITLE</button>
+      </div>
     </header>
     <div class="collection-scroll">
-      <div id="collection-grid" class="card-grid"></div>
+      <div class="collection-header-section">
+        <h2 class="collection-title">COLLECTION <span id="collection-count-label" class="collection-count-text">0/0</span></h2>
+        <p class="screen-hint">View your acquired and undiscovered arsenal.</p>
+      </div>
+      
+      <!-- Filters bar from Stitch Design -->
+      <div class="collection-filters-bar">
+        <div class="filter-group rarity-filters-group">
+          <span class="filter-label">RARITY:</span>
+          <div class="filter-buttons-container" id="collection-rarity-filters">
+            <button class="coll-filter-btn active" data-rarity="all">All</button>
+            <button class="coll-filter-btn" data-rarity="Common">Common</button>
+            <button class="coll-filter-btn" data-rarity="Rare">Rare</button>
+            <button class="coll-filter-btn" data-rarity="Epic">Epic</button>
+            <button class="coll-filter-btn" data-rarity="Legendary">Legendary</button>
+          </div>
+        </div>
+        
+        <div class="filter-group type-filters-group">
+          <span class="filter-label">TYPE:</span>
+          <div class="filter-buttons-container" id="collection-type-filters">
+            <button class="coll-filter-btn active" data-type="all">All</button>
+            <button class="coll-filter-btn" data-type="Attack">Attack</button>
+            <button class="coll-filter-btn" data-type="Skill">Skill</button>
+            <button class="coll-filter-btn" data-type="Power">Power</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="collection-grid-container">
+        <div id="collection-grid" class="card-grid"></div>
+      </div>
     </div>
   </section>
 
   <!-- ============ SHOP ============ -->
   <section id="screen-shop" class="screen">
     <header class="topbar">
-      <span class="act-name">SHOP</span>
-      <span id="shop-currency" class="stat gold">⛃ 0</span>
-      <button id="btn-shop-back" class="px-btn">BACK</button>
+      <span class="act-name yellow-text" id="btn-shop-logo" style="cursor: pointer;">PIXEL SPIRE</span>
+      <div class="topbar-stats">
+        <span id="shop-player-level-top" class="stat">LV 1</span>
+        <span id="shop-player-hp-top"    class="stat hp">HP 60/60</span>
+        <span id="shop-currency-top"     class="stat gold">⛃ 0</span>
+      </div>
+      <div class="topbar-buttons">
+        <button id="btn-shop-deck"       class="px-btn">DECK</button>
+        <button id="btn-shop-cards"      class="px-btn">CARDS</button>
+        <button id="btn-shop-shop"       class="px-btn active">SHOP</button>
+        <button id="btn-shop-title"      class="px-btn">TITLE</button>
+      </div>
     </header>
+
     <div class="shop-scroll">
-      <h3 class="section-label">UNLOCK NEW CARDS</h3>
-      <div id="shop-cards"    class="card-row"></div>
-      <h3 class="section-label">UPGRADE A CARD</h3>
-      <div id="shop-upgrades" class="card-row"></div>
-      <h3 class="section-label">SERVICES</h3>
-      <div id="shop-services" class="shop-services"></div>
+      <!-- Player Stats Bar -->
+      <div class="shop-stats-bar">
+        <div class="shop-stat-hp-box">
+          <div class="shop-avatar">👤</div>
+          <div class="shop-hp-details">
+            <span class="shop-hp-text-label">HP: <span id="shop-hp-val">0/0</span></span>
+            <div class="shop-hp-bar-outer"><div id="shop-hp-fill-bar" class="shop-hp-fill"></div></div>
+          </div>
+        </div>
+        <div class="shop-gold-box">
+          <span class="gold-icon">⛃</span>
+          <span id="shop-gold-val">0</span>
+        </div>
+      </div>
+
+      <!-- Intro Banner -->
+      <div class="shop-banner">
+        <div class="banner-eye-box">
+          <span class="banner-eye-icon">👁️</span>
+        </div>
+        <p class="shop-quote">"Gems for coin. Spells for blood. What's it going to be?"</p>
+      </div>
+
+      <!-- Columns Layout -->
+      <div class="shop-columns">
+        <!-- Left Column: CARDS -->
+        <div class="shop-column shop-left-col">
+          <h3 class="column-title"><span class="icon">🎴</span> CARDS</h3>
+          <div id="shop-cards-grid" class="shop-cards-vertical-grid"></div>
+        </div>
+        
+        <!-- Right Column: UPGRADES -->
+        <div class="shop-column shop-right-col">
+          <h3 class="column-title"><span class="icon">🔧</span> UPGRADES</h3>
+          <div id="shop-upgrades-list" class="shop-upgrades-vertical-list"></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -147,11 +282,62 @@
   </section>
 
   <!-- ============ DEFEAT ============ -->
-  <section id="screen-defeat" class="screen">
-    <div class="panel center-panel defeat-panel">
-      <h2 class="panel-title">DEFEAT...</h2>
-      <p id="defeat-text" class="reward-summary">You were slain. You lose some gold, but your progress remains.</p>
-      <button id="btn-defeat-continue" class="px-btn big">RETURN TO MAP</button>
+  <section id="screen-defeat" class="screen defeat-screen-layout">
+    <div class="defeat-content">
+      <h2 class="defeat-title">DEFEAT</h2>
+      <p class="defeat-subtitle">The Spire claims another soul.</p>
+      
+      <div class="run-summary-box-premium">
+        <div class="corner-notch tl"></div>
+        <div class="corner-notch tr"></div>
+        <div class="corner-notch bl"></div>
+        <div class="corner-notch br"></div>
+        
+        <h3 class="summary-title">RUN SUMMARY</h3>
+        <hr class="summary-divider">
+        
+        <div class="summary-stats-grid">
+          <div class="summary-column">
+            <div class="stat-row-premium">
+              <span class="icon-label">🔥 ACT REACHED:</span>
+              <span class="stat-value" id="defeat-act-reached">1</span>
+            </div>
+            <div class="stat-row-premium">
+              <span class="icon-label">🎴 CARDS COLLECTED:</span>
+              <span class="stat-value" id="defeat-cards-collected">0</span>
+            </div>
+          </div>
+          <div class="summary-column">
+            <div class="stat-row-premium">
+              <span class="icon-label">⚔️ ENEMIES SLAIN:</span>
+              <span class="stat-value" id="defeat-enemies-slain">0</span>
+            </div>
+            <div class="stat-row-premium">
+              <span class="icon-label">🪙 GOLD EARNED:</span>
+              <span class="stat-value yellow-text" id="defeat-gold-earned">0</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="xp-section-premium">
+          <div class="xp-labels">
+            <span class="xp-gained-label" id="defeat-xp-gained">XP GAINED: +0</span>
+            <span class="xp-level-progression" id="defeat-level-progression">LV 1 ➔ LV 2</span>
+          </div>
+          <div class="xp-bar-premium">
+            <div class="xp-bar-fill-premium" id="defeat-xp-fill"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="defeat-buttons-row">
+        <button id="btn-defeat-retry" class="px-btn-defeat primary">
+          <span class="btn-icon">🔄</span> TRY AGAIN
+        </button>
+        <button id="btn-defeat-title-screen" class="px-btn-defeat secondary">
+          <span class="btn-icon">🏠</span> RETURN TO TITLE
+        </button>
+      </div>
     </div>
   </section>
 
@@ -159,6 +345,9 @@
   <section id="screen-victory" class="screen">
     <div class="panel center-panel victory-panel">
       <h2 class="panel-title">🏆 SPIRE CONQUERED!</h2>
+      <p class="subtitle">You have ascended to the absolute peak.</p>
+      <div class="section-label">RUN SUMMARY</div>
+      <div id="victory-summary" class="run-summary-box"></div>
       <p id="victory-text" class="reward-summary"></p>
       <button id="btn-victory-replay" class="px-btn big">REPLAY (KEEP CARDS)</button>
       <button id="btn-victory-title"  class="px-btn">TITLE</button>
@@ -170,11 +359,11 @@
 
 </div><!-- #app -->
 
-<script src="data/cards.js"></script>
-<script src="data/enemies.js"></script>
-<script src="data/stages.js"></script>
-<script src="engine.js"></script>
-<script src="game.js"></script>
-<script src="ui.js"></script>
+<script src="data/cards.js?v=1.1.0"></script>
+<script src="data/enemies.js?v=1.1.0"></script>
+<script src="data/stages.js?v=1.1.0"></script>
+<script src="engine.js?v=1.1.0"></script>
+<script src="game.js?v=1.1.0"></script>
+<script src="ui.js?v=1.1.0"></script>
 </body>
 </html>

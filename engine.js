@@ -53,9 +53,17 @@ const Engine = {
       drawPile: this.shuffle(deckCardIds.slice()),
       hand: [], discardPile: [],
       cardUpgrades: cardUpgrades || {},
+      relics: playerState.relics || [],
       turn: 1, phase: "player", target: 0, over: false,
     };
     this.log(`⚔️ Battle start: ${stage.name}`);
+    if (this.battle.relics.includes("hellfire_stone")) {
+      enemies.forEach(e => {
+        e.hp = Math.max(0, e.hp - 3);
+        this.log(`🔥 Hellfire Stone deals 3 damage to ${e.name}.`);
+      });
+      this.checkDeaths();
+    }
     this.startPlayerTurn();
   },
 
@@ -132,6 +140,11 @@ const Engine = {
     const b = this.battle;
     b.phase = "player";
     b.player.armor = 0;                  // armor resets each turn
+    if (b.player.demonForm) {
+      const strGain = b.player.demonForm * 2;
+      b.player.strength = (b.player.strength || 0) + strGain;
+      this.log(`😈 Demon Form grants +${strGain} Strength.`);
+    }
     this.tickPoison(b.player, "Hero");
     if (this.checkDeaths()) return;
     b.player.mana = b.player.maxMana;
@@ -158,8 +171,38 @@ const Engine = {
 
     p.mana -= card.manaCost;
     b.hand.splice(handIndex, 1);
-    b.discardPile.push(cardId);
+    
+    // Check for Exhaust effect
+    if (card.description && (card.description.includes("Exhaust") || card.id === "prepare" || card.id === "void_shield")) {
+      this.log(`✨ ${card.name} is exhausted and removed from this battle.`);
+    } else {
+      b.discardPile.push(cardId);
+    }
+    
     this.log(`▶️ You play ${card.name}.`);
+
+    // Vampire Fang relic healing
+    if (card.type === "Attack" && b.relics && b.relics.includes("vampire_fang") && p.hp > 0) {
+      const healAmt = Math.min(1, p.maxHp - p.hp);
+      if (healAmt > 0) {
+        p.hp += healAmt;
+        this.log(`🩸 Vampire Fang heals you for 1 HP.`);
+      }
+    }
+
+    // Void Strike extra energy logic
+    if (cardId === "void_strike") {
+      const t = b.enemies.find(x => x.uid === b.target);
+      if (t && t.weak > 0) {
+        p.mana = Math.min(p.maxMana, p.mana + 1);
+        this.log(`⚡ Void Strike triggers: target has Weak, gained 1 Energy!`);
+      }
+    }
+
+    // Demon Form setup
+    if (cardId === "demon_form") {
+      p.demonForm = (p.demonForm || 0) + 1;
+    }
 
     // Determine targets for hostile effects
     const targets = e.aoe ? this.livingEnemies()
