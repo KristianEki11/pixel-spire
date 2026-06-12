@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIXEL SPIRE — Deck-Building Roguelite</title>
+<!-- Retro pixel font via CDN -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ TITLE SCREEN ============ -->
+  <section id="screen-title" class="screen active">
+    <div class="title-box">
+      <h1 class="game-title">PIXEL<br>SPIRE</h1>
+      <p class="subtitle">A Deck-Building Adventure</p>
+      <div class="title-buttons">
+        <button id="btn-continue" class="px-btn big">CONTINUE</button>
+        <button id="btn-newgame" class="px-btn big">NEW GAME</button>
+      </div>
+      <p class="title-hint">Progress is saved automatically</p>
+    </div>
+  </section>
+
+  <!-- ============ MAP SCREEN ============ -->
+  <section id="screen-map" class="screen">
+    <header class="topbar">
+      <span id="map-act-name" class="act-name">ACT 1</span>
+      <div class="topbar-stats">
+        <span id="map-player-level" class="stat">LV 1</span>
+        <span id="map-player-hp" class="stat hp">HP 60/60</span>
+        <span id="map-currency" class="stat gold">⛃ 0</span>
+      </div>
+      <div class="topbar-buttons">
+        <button id="btn-map-deck" class="px-btn">DECK</button>
+        <button id="btn-map-collection" class="px-btn">CARDS</button>
+        <button id="btn-map-shop" class="px-btn">SHOP</button>
+        <button id="btn-map-title" class="px-btn">TITLE</button>
+      </div>
+    </header>
+    <div id="map-container" class="map-container"></div>
+  </section>
+
+  <!-- ============ BATTLE SCREEN ============ -->
+  <section id="screen-battle" class="screen">
+    <header class="topbar battle-topbar">
+      <span id="battle-stage-name" class="act-name">Stage</span>
+      <span id="battle-turn-label" class="stat">YOUR TURN</span>
+    </header>
+
+    <div id="battle-area">
+      <!-- Enemies -->
+      <div id="enemy-row" class="enemy-row"></div>
+
+      <!-- Player -->
+      <div id="player-zone" class="player-zone">
+        <div class="unit player-unit" id="player-unit">
+          <div class="sprite player-sprite">🧙</div>
+          <div class="unit-name">HERO</div>
+          <div class="hp-bar"><div id="player-hp-fill" class="hp-fill"></div></div>
+          <div id="player-hp-text" class="hp-text">60/60</div>
+          <div id="player-statuses" class="status-row"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Battle HUD -->
+    <div id="battle-hud">
+      <div class="hud-left">
+        <div id="mana-orb" class="mana-orb"><span id="mana-text">3/3</span></div>
+        <div class="pile-info">
+          <span id="draw-count" class="pile draw">DRAW 0</span>
+          <span id="discard-count" class="pile discard">DISC 0</span>
+        </div>
+      </div>
+      <div id="hand" class="hand"></div>
+      <div class="hud-right">
+        <button id="btn-end-turn" class="px-btn big endturn">END<br>TURN</button>
+      </div>
+    </div>
+
+    <div id="battle-log" class="battle-log"></div>
+  </section>
+
+  <!-- ============ REWARDS SCREEN ============ -->
+  <section id="screen-rewards" class="screen">
+    <div class="panel center-panel">
+      <h2 class="panel-title">VICTORY!</h2>
+      <div id="reward-summary" class="reward-summary"></div>
+      <div id="reward-card-choices" class="card-row"></div>
+      <button id="btn-skip-reward" class="px-btn">SKIP CARD</button>
+      <button id="btn-rewards-continue" class="px-btn big hidden">CONTINUE</button>
+    </div>
+  </section>
+
+  <!-- ============ DECK EDITOR SCREEN ============ -->
+  <section id="screen-deck" class="screen">
+    <header class="topbar">
+      <span class="act-name">DECK EDITOR</span>
+      <span id="deck-count" class="stat">15/30</span>
+      <button id="btn-deck-back" class="px-btn">BACK</button>
+    </header>
+    <p class="screen-hint">Deck: 15–30 cards, max 3 copies each. Click deck card to remove, owned card to add.</p>
+    <h3 class="section-label">CURRENT DECK</h3>
+    <div id="deck-list" class="card-grid"></div>
+    <h3 class="section-label">OWNED CARDS</h3>
+    <div id="owned-list" class="card-grid"></div>
+  </section>
+
+  <!-- ============ COLLECTION SCREEN ============ -->
+  <section id="screen-collection" class="screen">
+    <header class="topbar">
+      <span class="act-name">COLLECTION</span>
+      <span id="collection-count" class="stat">0/0</span>
+      <button id="btn-collection-back" class="px-btn">BACK</button>
+    </header>
+    <div id="collection-grid" class="card-grid"></div>
+  </section>
+
+  <!-- ============ SHOP SCREEN ============ -->
+  <section id="screen-shop" class="screen">
+    <header class="topbar">
+      <span class="act-name">SHOP</span>
+      <span id="shop-currency" class="stat gold">⛃ 0</span>
+      <button id="btn-shop-back" class="px-btn">BACK</button>
+    </header>
+    <h3 class="section-label">UNLOCK NEW CARDS</h3>
+    <div id="shop-cards" class="card-row"></div>
+    <h3 class="section-label">UPGRADE A CARD (+stats per level)</h3>
+    <div id="shop-upgrades" class="card-row"></div>
+    <h3 class="section-label">SERVICES</h3>
+    <div id="shop-services" class="shop-services"></div>
+  </section>
+
+  <!-- ============ BONUS / TREASURE SCREEN ============ -->
+  <section id="screen-bonus" class="screen">
+    <div class="panel center-panel">
+      <h2 class="panel-title">✨ TREASURE! ✨</h2>
+      <div id="bonus-summary" class="reward-summary"></div>
+      <button id="btn-bonus-continue" class="px-btn big">CONTINUE</button>
+    </div>
+  </section>
+
+  <!-- ============ DEFEAT SCREEN ============ -->
+  <section id="screen-defeat" class="screen">
+    <div class="panel center-panel defeat-panel">
+      <h2 class="panel-title">DEFEAT...</h2>
+      <p id="defeat-text" class="reward-summary">You were slain. You lose some gold, but your progress remains.</p>
+      <button id="btn-defeat-continue" class="px-btn big">RETURN TO MAP</button>
+    </div>
+  </section>
+
+  <!-- ============ GAME COMPLETE SCREEN ============ -->
+  <section id="screen-victory" class="screen">
+    <div class="panel center-panel victory-panel">
+      <h2 class="panel-title">🏆 SPIRE CONQUERED! 🏆</h2>
+      <p id="victory-text" class="reward-summary"></p>
+      <button id="btn-victory-replay" class="px-btn big">REPLAY MAP (KEEP CARDS)</button>
+      <button id="btn-victory-title" class="px-btn">TITLE</button>
+    </div>
+  </section>
+
+  <!-- Toast / level-up popup -->
+  <div id="toast" class="toast hidden"></div>
+</div>
+
+<!-- Data first, then logic -->
+<script src="data/cards.js"></script>
+<script src="data/enemies.js"></script>
+<script src="data/stages.js"></script>
+<script src="engine.js"></script>
+<script src="game.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
