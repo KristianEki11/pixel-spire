@@ -114,21 +114,34 @@ const UI = {
   /* ================= BATTLE ================= */
   startBattle(stage) {
     Engine.onUpdate = () => this.renderBattle();
-    Engine.onLog = (m) => this.appendLog(m);
+    Engine.onLog = (m) => this.floatText(m);
     Engine.onHit = (who, uid) => this.flashHit(who, uid);
     Engine.onEnd = (won) => setTimeout(() => won ? this.battleWon(stage) : this.battleLost(), 800);
-    $("#battle-log").innerHTML = "";
+    const fc = $("#float-text-container");
+    if (fc) fc.innerHTML = "";
     $("#battle-stage-name").textContent = `${stage.icon} ${stage.name} [${stage.type}]`;
     Engine.startBattle(stage, Game.state, Game.state.deck, Game.state.cardUpgrades);
     this.show("#screen-battle");
   },
 
-  appendLog(msg) {
-    const log = $("#battle-log");
-    const p = document.createElement("p");
-    p.textContent = msg;
-    log.appendChild(p);
-    log.scrollTop = log.scrollHeight;
+  floatText(msg) {
+    const container = $("#float-text-container");
+    if (!container) return;
+    const el = document.createElement("div");
+    el.className = "float-msg";
+    el.textContent = msg;
+    // color-code by content
+    if (/\d+ damage|dmg|atk/i.test(msg))  el.classList.add("dmg");
+    else if (/block|armor|guard/i.test(msg)) el.classList.add("blk");
+    else if (/heal|hp|recover/i.test(msg))   el.classList.add("heal");
+    else if (/poison|weak|vuln/i.test(msg))  el.classList.add("debuff");
+    else if (/draw|energy|mana/i.test(msg))  el.classList.add("mana");
+    // random slight x offset so multiple messages don't stack
+    const xOff = (Math.random() - 0.5) * 60;
+    el.style.setProperty("--x-off", `${xOff}px`);
+    container.appendChild(el);
+    // clean up after animation
+    el.addEventListener("animationend", () => el.remove());
   },
 
   flashHit(who, uid) {
