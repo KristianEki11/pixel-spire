@@ -608,7 +608,7 @@ html, body {
 /* ═══════════════════════════════════════════════════════
    REWARDS / PANELS
 ══════════════════════════════════════════════════════ */
-#screen-rewards,#screen-bonus,#screen-defeat,#screen-victory {
+#screen-rewards,#screen-bonus,#screen-defeat,#screen-victory,#screen-carddraft {
   background: var(--bg);
   align-items: center; justify-content: center;
 }

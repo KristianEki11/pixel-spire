@@ -1042,6 +1042,7 @@ const UI = {
     const cont = $("#btn-event-continue");
     cont.classList.remove("hidden");
     cont.onclick = () => this.advanceAndMap();
+    this.show("#screen-event");
   },
 
   /* ================= CAMPFIRE SCREEN ================= */
@@ -1231,13 +1232,11 @@ const UI = {
 
   /* ================= CARD DRAFT (choose-1-of-N card) ================= */
   openCardDraft(rarity, count, onDone) {
-    // Reuse the rewards screen layout for a card choice.
-    $("#reward-summary").innerHTML = `<p class="screen-hint">Choose 1 ${rarity} card.</p>`;
-    const choices = $("#reward-card-choices");
+    $("#carddraft-title").textContent = "CARD DRAFT";
+    $("#carddraft-summary").innerHTML = `<p class="screen-hint">Choose 1 ${rarity} card.</p>`;
+    const choices = $("#carddraft-choices");
     choices.innerHTML = "";
     const pool = Run.shuffle(CARDS.filter(c => c.rarity === rarity)).slice(0, count || 3);
-    $("#btn-skip-reward").classList.add("hidden");
-    $("#btn-rewards-continue").classList.add("hidden");
     pool.forEach(card => {
       choices.appendChild(this.cardEl(card, {
         onClick: () => {
@@ -1248,7 +1247,7 @@ const UI = {
         }
       }));
     });
-    this.show("#screen-rewards");
+    this.show("#screen-carddraft");
   },
 
   /* ================= INIT / EVENT WIRING ================= */
