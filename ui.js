@@ -389,7 +389,7 @@ const UI = {
     const queuedRow = $("#queued-cards-row");
     queuedRow.innerHTML = "";
     this.queuedCards.forEach((q, qIndex) => {
-      const card = getCardById(q.id);
+      const card = resolveCard(q.id);
       const el = this.cardEl(card, {
         upgLevel: b.cardUpgrades[q.id] || 0,
         onClick: () => {
@@ -412,12 +412,13 @@ const UI = {
     visibleCards.forEach((item, i) => {
       const cardId = item.cardId;
       const originalIndex = item.originalIndex;
-      const card = getCardById(cardId);
-      const playable = remainingMana >= card.manaCost;
+      const card = resolveCard(cardId);
+      const isCurse = isCurseId(cardId);
+      const playable = !isCurse && remainingMana >= Engine.effectiveCost(card, b.cardUpgrades[cardId] || 0);
       const el = this.cardEl(card, {
         upgLevel: b.cardUpgrades[cardId] || 0,
         onClick: () => {
-          if (this.isExecuting) return;
+          if (this.isExecuting || isCurse) return;
           if (playable) {
             this.queuedCards.push({ id: cardId, originalIndex });
             this.renderBattle();
