@@ -106,7 +106,12 @@ const Game = {
     s.stageIndex = 0; s.clearedStages = []; s.gameComplete = false;
     s.hp = s.maxHp;
     s.relics = [];
+    s.curses = [];
+    s.activeShopMarkup = 0;
+    s.pendingReward = null;
+    s.run = null;
     this.rollShopOffers();
+    Run.generateRun(1);
     this.save();
   },
 
