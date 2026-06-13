@@ -355,6 +355,46 @@
   </section>
 
   <!-- Toast -->
+  <section id="screen-event" class="screen">
+    <div class="panel center-panel event-panel">
+      <div id="event-art" class="event-art">?</div>
+      <h2 id="event-title" class="panel-title">EVENT</h2>
+      <p id="event-subtitle" class="subtitle"></p>
+      <p id="event-description" class="reward-summary"></p>
+      <div id="event-choices" class="event-choices"></div>
+      <div id="event-result" class="event-result hidden"></div>
+      <button id="btn-event-continue" class="px-btn big hidden">CONTINUE</button>
+    </div>
+  </section>
+
+  <section id="screen-campfire" class="screen">
+    <div class="panel center-panel campfire-panel">
+      <div class="event-art">🔥</div>
+      <h2 class="panel-title">CAMPFIRE</h2>
+      <p class="subtitle">Rest, sharpen your kit, or cleanse your deck.</p>
+      <div id="campfire-options" class="campfire-options"></div>
+      <div id="campfire-cardpane" class="campfire-cardpane hidden">
+        <h3 class="section-label" id="campfire-cardpane-title">SELECT A CARD</h3>
+        <div id="campfire-card-list" class="card-grid campfire-card-list"></div>
+        <div id="campfire-preview" class="campfire-preview"></div>
+        <div class="campfire-actions">
+          <button id="btn-campfire-confirm" class="px-btn big" disabled>CONFIRM</button>
+          <button id="btn-campfire-cancel" class="px-btn">BACK</button>
+        </div>
+      </div>
+      <button id="btn-campfire-leave" class="px-btn big hidden">LEAVE CAMP</button>
+    </div>
+  </section>
+
+  <section id="screen-relicdraft" class="screen">
+    <div class="panel center-panel">
+      <h2 id="relicdraft-title" class="panel-title">CHOOSE ONE RELIC</h2>
+      <p id="relicdraft-subtitle" class="subtitle">Your reward for victory.</p>
+      <div id="relicdraft-choices" class="relicdraft-choices"></div>
+      <button id="btn-relicdraft-skip" class="px-btn hidden">SKIP (+30 gold)</button>
+    </div>
+  </section>
+
   <div id="toast" class="toast hidden"></div>
 
 </div><!-- #app -->
