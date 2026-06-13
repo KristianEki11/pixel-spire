@@ -79,6 +79,8 @@ const Game = {
   /* ---- stage / progression ---- */
   currentStage() { return STAGES[this.state.stageIndex] || null; },
   currentAct() {
+    // The run is the source of truth once it exists; fall back to STAGES.
+    if (this.state && this.state.run && this.state.run.act) return this.state.run.act;
     const st = this.currentStage();
     return st ? st.act : 3;
   },
@@ -384,7 +386,6 @@ const Run = {
     }
     const levels = Game.gainXp(stage.rewards.xp || 0);
     s.clearedStages.push(stage.id);
-    this.rollShopOffers ? null : null; // shop offers rolled per-shop node now
     if (node && node.type === "elite") {
       s.pendingReward = { kind: "relicDraft", tier: node.tier || "common", count: 3 };
     }
