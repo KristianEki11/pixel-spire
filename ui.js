@@ -79,6 +79,8 @@ const UI = {
 
   /* ================= TITLE ================= */
   renderTitle() {
+    this.activeNode = null;
+    if (Game.state) Game.state.activeShopMarkup = 0;
     $("#btn-continue").classList.toggle("hidden", !Game.hasSave());
     this.show("#screen-title");
   },
@@ -1260,10 +1262,14 @@ const UI = {
       else this.toast("No save found!");
     });
 
-    // Map topbar
+    // Map topbar. The topbar SHOP is a free deck-tuning shop (no markup,
+    // does not consume a run node).
     $("#btn-map-deck").addEventListener("click", () => this.renderDeck());
     $("#btn-map-collection").addEventListener("click", () => this.renderCollection());
-    $("#btn-map-shop").addEventListener("click", () => this.renderShop());
+    $("#btn-map-shop").addEventListener("click", () => {
+      Game.state.activeShopMarkup = 0; this.activeNode = null; Game.save();
+      this.renderShop();
+    });
     $("#btn-map-title").addEventListener("click", () => this.renderTitle());
 
     // Shop topbar buttons
