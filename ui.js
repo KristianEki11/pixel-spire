@@ -914,6 +914,322 @@ const UI = {
     this.show("#screen-shop");
   },
 
+  /* ================= EVENT SCREEN ================= */
+  renderEvent(event) {
+    this.currentEvent = event;
+    $("#event-art").textContent = event.art || "❓";
+    $("#event-title").textContent = event.title;
+    $("#event-subtitle").textContent = event.subtitle || "";
+    $("#event-description").textContent = event.description || "";
+    $("#event-result").classList.add("hidden");
+    $("#event-result").innerHTML = "";
+    $("#btn-event-continue").classList.add("hidden");
+
+    const choicesEl = $("#event-choices");
+    choicesEl.innerHTML = "";
+    event.choices.forEach(choice => {
+      const enabled = this.choiceAvailable(choice);
+      const btn = document.createElement("button");
+      btn.className = "px-btn event-choice-btn" + (enabled ? "" : " unplayable");
+      btn.innerHTML = `<span class="event-choice-label">${choice.label}</span>` +
+        (choice.hint ? `<span class="event-choice-hint">${choice.hint}</span>` : "");
+      if (enabled) btn.addEventListener("click", () => this.chooseEventOption(choice));
+      else btn.disabled = true;
+      choicesEl.appendChild(btn);
+    });
+    this.show("#screen-event");
+  },
+
+  /* Evaluate a choice's conditions against current state. */
+  choiceAvailable(choice) {
+    const c = choice.conditions; if (!c) return true;
+    const s = Game.state;
+    if (c.minHp   != null && s.hp < c.minHp) return false;
+    if (c.minGold != null && s.currency < c.minGold) return false;
+    if (c.hasRelic && !s.relics.includes(c.hasRelic)) return false;
+    if (c.notCurse && s.curses.includes(c.notCurse)) return false;
+    if (c.deckMin != null && s.deck.length < c.deckMin) return false;
+    return true;
+  },
+
+  /* Resolve a chosen option: run non-interactive effects, then chain
+     any interactive ones (pickers/drafts) before showing the result. */
+  chooseEventOption(choice) {
+    if (this.currentEvent.oncePerRun) Run.markEventUsed(this.currentEvent.id);
+    $("#event-choices").innerHTML = "";
+    this.pendingEffects = (choice.effects || []).slice();
+    this.runNextEffect();
+  },
+
+  /* Process the queued effects one at a time. Interactive effects open a
+     picker/draft and resume this chain via resumeEffects(). */
+  runNextEffect() {
+    while (this.pendingEffects.length) {
+      const effect = this.pendingEffects.shift();
+      const result = Run.applyEffect(effect);
+      if (result && result.interactive) {
+        this.handleInteractiveEffect(result);
+        return; // chain resumes after the picker resolves
+      }
+    }
+    this.finishEvent();
+  },
+  resumeEffects() { this.runNextEffect(); },
+
+  handleInteractiveEffect(result) {
+    switch (result.interactive) {
+      case "upgradeCard":
+        this.openCardPicker("UPGRADE A CARD", { mode: "upgrade" }, (id) => {
+          Run.upgradeDeckCard(id); this.toast(`Upgraded ${getCardById(id).name}!`); this.resumeEffects();
+        });
+        break;
+      case "removeCard":
+        this.openCardPicker("REMOVE A CARD", { mode: "remove" }, (id, index) => {
+          Run.removeDeckCardAt(index); this.toast(`Removed a card.`); this.resumeEffects();
+        });
+        break;
+      case "transformCard":
+        this.openCardPicker("TRANSFORM A CARD", { mode: "remove" }, (id, index) => {
+          const card = getCardById(id) || getCurseById(id);
+          Run.removeDeckCardAt(index);
+          const newId = Run.randomCardByRarity(card.rarity);
+          if (newId) { Game.unlockCard(newId); Run.duplicateDeckCard(newId); this.toast(`Transformed into ${getCardById(newId).name}!`); }
+          this.resumeEffects();
+        });
+        break;
+      case "duplicateCard":
+        this.openCardPicker("DUPLICATE A CARD", { mode: "upgrade" }, (id) => {
+          Run.duplicateDeckCard(id); this.toast(`Duplicated ${getCardById(id).name}!`); this.resumeEffects();
+        });
+        break;
+      case "relicDraft":
+        this.openRelicDraft(result.tier, result.count, { context: "event", onDone: () => this.resumeEffects() });
+        break;
+      case "cardDraft":
+        this.openCardDraft(result.rarity, result.count, () => this.resumeEffects());
+        break;
+      default: this.resumeEffects();
+    }
+  },
+
+  /* Show the event outcome and a continue button that advances the node. */
+  finishEvent() {
+    const s = Game.state;
+    const resEl = $("#event-result");
+    resEl.classList.remove("hidden");
+    resEl.innerHTML = `<p class="screen-hint">HP ${s.hp}/${s.maxHp} &nbsp; ⛃ ${s.currency} &nbsp; 📿 ${s.curses.length} curses &nbsp; 🔱 ${s.relics.length} relics</p>`;
+    const cont = $("#btn-event-continue");
+    cont.classList.remove("hidden");
+    cont.onclick = () => this.advanceAndMap();
+  },
+
+  /* ================= CAMPFIRE SCREEN ================= */
+  renderCampfire() {
+    $("#campfire-cardpane").classList.add("hidden");
+    $("#btn-campfire-leave").classList.add("hidden");
+    const opts = $("#campfire-options");
+    opts.classList.remove("hidden");
+    opts.innerHTML = "";
+
+    const restAmt = Math.round(Game.state.maxHp * 0.25);
+    const makeOpt = (icon, title, desc, onClick, disabled) => {
+      const b = document.createElement("button");
+      b.className = "px-btn event-choice-btn" + (disabled ? " unplayable" : "");
+      b.innerHTML = `<span class="event-choice-label">${icon} ${title}</span><span class="event-choice-hint">${desc}</span>`;
+      if (!disabled) b.addEventListener("click", onClick); else b.disabled = true;
+      opts.appendChild(b);
+    };
+
+    makeOpt("🛌️", "REST", `Heal ${restAmt} HP (25% of Max).`, () => {
+      const healed = Run.restHeal();
+      this.toast(`Rested: +${healed} HP.`);
+      this.campfireDone();
+    }, Game.state.hp >= Game.state.maxHp);
+
+    makeOpt("🔺", "UPGRADE", "Permanently upgrade 1 deck card.", () => {
+      this.openCardPicker("UPGRADE A CARD", { mode: "upgrade", inCampfire: true }, (id) => {
+        Run.upgradeDeckCard(id); this.toast(`Upgraded ${getCardById(id).name}!`); this.campfireDone();
+      });
+    });
+
+    const purgeCost = 25;
+    makeOpt("🧹", "PURGE", `Remove 1 card for ⛃ ${purgeCost}.`, () => {
+      if (Game.state.currency < purgeCost) { this.toast("Not enough gold!"); return; }
+      this.openCardPicker("REMOVE A CARD", { mode: "remove", inCampfire: true }, (id, index) => {
+        Game.state.currency -= purgeCost; Run.removeDeckCardAt(index);
+        this.toast(`Purged a card.`); this.campfireDone();
+      });
+    }, Game.state.currency < purgeCost || Game.state.deck.length <= DECK_MIN);
+
+    this.show("#screen-campfire");
+  },
+
+  campfireDone() {
+    $("#campfire-cardpane").classList.add("hidden");
+    $("#campfire-options").classList.add("hidden");
+    const leave = $("#btn-campfire-leave");
+    leave.classList.remove("hidden");
+    leave.onclick = () => this.advanceAndMap();
+  },
+
+  /* ================= CARD PICKER (shared) =================
+     Lists the current deck for upgrade/remove with a before/after
+     preview. opts.mode: "upgrade" | "remove". cb(cardId, deckIndex). */
+  openCardPicker(title, opts, cb) {
+    // Render inside the campfire card pane (reused for events too).
+    this.show("#screen-campfire");
+    $("#campfire-options").classList.add("hidden");
+    $("#btn-campfire-leave").classList.add("hidden");
+    const pane = $("#campfire-cardpane");
+    pane.classList.remove("hidden");
+    $("#campfire-cardpane-title").textContent = title;
+    const preview = $("#campfire-preview");
+    preview.innerHTML = "";
+    const confirmBtn = $("#btn-campfire-confirm");
+    confirmBtn.disabled = true;
+
+    let selectedIndex = -1, selectedId = null;
+    const list = $("#campfire-card-list");
+    list.innerHTML = "";
+
+    // unique deck cards (skip curses for upgrade; allow for remove)
+    const seen = new Set();
+    Game.state.deck.forEach((id, index) => {
+      const isCurse = isCurseId(id);
+      if (opts.mode === "upgrade" && isCurse) return; // can't upgrade curses
+      if (seen.has(id)) return; seen.add(id);
+      const card = isCurse ? getCurseById(id) : getCardById(id);
+      const el = this.cardEl(card, {
+        upgLevel: Game.state.cardUpgrades[id] || 0,
+        onClick: () => {
+          selectedIndex = Game.state.deck.indexOf(id);
+          selectedId = id;
+          list.querySelectorAll(".card").forEach(c => c.classList.remove("selected"));
+          el.classList.add("selected");
+          confirmBtn.disabled = false;
+          this.renderPickerPreview(preview, id, opts.mode);
+        }
+      });
+      list.appendChild(el);
+    });
+
+    confirmBtn.onclick = () => {
+      if (selectedIndex < 0) return;
+      pane.classList.add("hidden");
+      cb(selectedId, selectedIndex);
+    };
+    $("#btn-campfire-cancel").onclick = () => {
+      // Cancel returns to campfire options (camp) or re-runs event chain end.
+      if (this.activeNode && this.activeNode.type === "camp") this.renderCampfire();
+      else { pane.classList.add("hidden"); this.resumeEffects(); }
+    };
+  },
+
+  renderPickerPreview(container, id, mode) {
+    const isCurse = isCurseId(id);
+    const card = isCurse ? getCurseById(id) : getCardById(id);
+    if (mode === "remove") {
+      container.innerHTML = `<p class="screen-hint">Remove <b>${card.name}</b> from your deck?</p>`;
+      return;
+    }
+    // upgrade preview: before/after values
+    const lvl = Game.state.cardUpgrades[id] || 0;
+    const before = Engine.upgradedEffect(card, lvl);
+    const after  = Engine.upgradedEffect(card, lvl + 1);
+    const costBefore = Engine.effectiveCost(card, lvl);
+    const costAfter  = Engine.effectiveCost(card, lvl + 1);
+    const fmt = (e, cost) => {
+      const parts = [];
+      if (e.damage)   parts.push(`⚔️${e.damage}${e.hits>1?`×${e.hits}`:""}`);
+      if (e.armor)    parts.push(`🛡️${e.armor}`);
+      if (e.heal)     parts.push(`💚${e.heal}`);
+      if (e.poison)   parts.push(`☠️${e.poison}`);
+      if (e.strength) parts.push(`💪${e.strength}`);
+      parts.push(`⚡${cost}`);
+      return parts.join(" ");
+    };
+    const gainsExhaust = Engine.gainsExhaust(card, lvl + 1) && !Engine.gainsExhaust(card, lvl);
+    container.innerHTML = `
+      <p class="screen-hint"><b>${card.name}</b> +${lvl} → +${lvl + 1}</p>
+      <div class="upg-preview-row">
+        <span class="upg-before">${fmt(before, costBefore)}</span>
+        <span class="upg-arrow">→</span>
+        <span class="upg-after">${fmt(after, costAfter)}</span>
+      </div>
+      ${gainsExhaust ? `<p class="screen-hint">Gains <b>Exhaust</b>.</p>` : ""}`;
+  },
+
+  /* ================= RELIC DRAFT ================= */
+  /* opts: { context:"elite"|"treasure"|"event", onDone? } */
+  openRelicDraft(tier, count, opts = {}) {
+    const choices = generateRelicChoices(tier, count || 3, true);
+    $("#relicdraft-title").textContent = "CHOOSE ONE RELIC";
+    $("#relicdraft-subtitle").textContent =
+      opts.context === "treasure" ? "A treasure vault — take your pick." : "Your reward for victory.";
+    const wrap = $("#relicdraft-choices");
+    wrap.innerHTML = "";
+
+    const done = () => {
+      if (opts.onDone) opts.onDone();
+      else this.advanceAndMap();
+    };
+
+    if (!choices.length) {
+      Game.state.currency += 50; Game.save();
+      this.toast("No new relics — +⛃ 50 instead.");
+      done(); return;
+    }
+
+    choices.forEach(relic => {
+      const el = document.createElement("div");
+      el.className = `relic-card tier-${relic.tier}`;
+      el.innerHTML = `
+        <div class="relic-icon">${relic.icon}</div>
+        <div class="relic-name">${relic.name}</div>
+        <div class="relic-desc">${relic.description}</div>
+        <div class="relic-tier-tag">${relic.tier.toUpperCase()}</div>`;
+      el.addEventListener("click", () => {
+        Run.addRelic(relic.id);
+        this.toast(`Gained ${relic.name}!`);
+        done();
+      });
+      wrap.appendChild(el);
+    });
+
+    // Treasure nodes may also offer a gold alternative via skip.
+    const skip = $("#btn-relicdraft-skip");
+    if (opts.context === "treasure") {
+      skip.classList.remove("hidden");
+      skip.textContent = "TAKE GOLD (+120) INSTEAD";
+      skip.onclick = () => { Game.state.currency += 120; Game.save(); this.toast("+⛃ 120 gold."); done(); };
+    } else {
+      skip.classList.add("hidden");
+    }
+    this.show("#screen-relicdraft");
+  },
+
+  /* ================= CARD DRAFT (choose-1-of-N card) ================= */
+  openCardDraft(rarity, count, onDone) {
+    // Reuse the rewards screen layout for a card choice.
+    $("#reward-summary").innerHTML = `<p class="screen-hint">Choose 1 ${rarity} card.</p>`;
+    const choices = $("#reward-card-choices");
+    choices.innerHTML = "";
+    const pool = Run.shuffle(CARDS.filter(c => c.rarity === rarity)).slice(0, count || 3);
+    $("#btn-skip-reward").classList.add("hidden");
+    $("#btn-rewards-continue").classList.add("hidden");
+    pool.forEach(card => {
+      choices.appendChild(this.cardEl(card, {
+        onClick: () => {
+          Game.unlockCard(card.id);
+          if (Game.state.deck.length < DECK_MAX) Run.duplicateDeckCard(card.id);
+          this.toast(`Gained ${card.name}!`);
+          if (onDone) onDone(); else this.advanceAndMap();
+        }
+      }));
+    });
+    this.show("#screen-rewards");
+  },
+
   /* ================= INIT / EVENT WIRING ================= */
   init() {
     // Title
