@@ -67,3 +67,18 @@ const STAGES = [
 ];
 
 function getStageByIndex(i) { return STAGES[i]; }
+
+/* ============================================================
+   NODE_COMPOSITION — per-act weights used by Run.generateRun
+   to fill the non-boss/non-miniboss encounter slots of an act.
+   Act 1 is safer; Act 3 is harder (more elites, more events).
+   Boss + MiniBoss positions come from the designed STAGES list.
+   ============================================================ */
+const NODE_COMPOSITION = {
+  1: { combat: 5, event: 3, camp: 2, elite: 1, treasure: 1, shop: 1 },
+  2: { combat: 4, event: 3, camp: 2, elite: 2, treasure: 1, shop: 2 },
+  3: { combat: 4, event: 3, camp: 1, elite: 3, treasure: 1, shop: 2 },
+};
+
+/* Relic tier offered by elite/treasure nodes, per act. */
+const ACT_RELIC_TIER = { 1: "common", 2: "rare", 3: "boss" };
