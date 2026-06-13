@@ -17,10 +17,13 @@ const Game = {
       deck: STARTING_DECK.slice(),
       cardUpgrades: {},            // { cardId: level }
       relics: [],                  // player acquired relics
+      curses: [],                  // curse card ids added to deck context
       stageIndex: 0,               // next stage to play in STAGES
       clearedStages: [],           // stage ids
       shopOffers: null,            // current 3 shop unlock offers
       gameComplete: false,
+      run: null,                   // generated node path (see Run.generateRun)
+      pendingReward: null,         // e.g. {kind:"relicDraft",tier,count} between battle->draft
     };
   },
 
@@ -31,12 +34,29 @@ const Game = {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
       this.state = JSON.parse(raw);
-      if (!this.state.relics) this.state.relics = [];
+      this.migrate();
       return true;
     } catch (e) { return false; }
   },
   hasSave() { return !!localStorage.getItem(SAVE_KEY); },
-  newGame() { this.state = this.defaultState(); this.rollShopOffers(); this.save(); },
+  newGame() {
+    this.state = this.defaultState();
+    this.rollShopOffers();
+    Run.generateRun(this.currentAct());
+    this.save();
+  },
+
+  /* ---- save migration (keeps old saves working) ---- */
+  migrate() {
+    const s = this.state;
+    if (!s.relics) s.relics = [];
+    if (!s.curses) s.curses = [];
+    if (s.pendingReward === undefined) s.pendingReward = null;
+    if (!s.run) {
+      // Old save: synthesize a run for the act the player is currently in.
+      Run.generateRun(this.currentAct());
+    }
+  },
 
   /* ---- leveling ---- */
   xpForNext() { return this.state.playerLevel * 100; },
