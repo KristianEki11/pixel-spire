@@ -710,6 +710,16 @@ const UI = {
     
     $("#shop-gold-val").textContent = s.currency;
 
+    // Markup notice (Merchant's Debt). Only shown when entered as a shop node.
+    const quoteEl = $(".shop-quote");
+    if (quoteEl) {
+      if (s.activeShopMarkup && s.activeShopMarkup > 0) {
+        quoteEl.textContent = `"Debt has a price, friend... +${Math.round(s.activeShopMarkup * 100)}% today."`;
+      } else {
+        quoteEl.textContent = `"Gems for coin. Spells for blood. What's it going to be?"`;
+      }
+    }
+
     // 1. LEFT COLUMN: CARDS FOR SALE
     const cardsGrid = $("#shop-cards-grid");
     cardsGrid.innerHTML = "";
@@ -733,7 +743,7 @@ const UI = {
           <div class="card-title">${card.name}</div>
           <div class="card-desc">${desc}</div>
           <div class="card-footer">
-            <span class="card-price">⛃ ${RARITY_PRICE[card.rarity]}</span>
+            <span class="card-price">⛃ ${Game.cardPrice(id)}</span>
             <button class="px-btn buy-btn">BUY</button>
           </div>
         `;
