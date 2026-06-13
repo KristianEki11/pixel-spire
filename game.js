@@ -136,7 +136,15 @@ const Game = {
     if (this.state.deck.length > DECK_MIN) { this.state.deck.splice(index, 1); this.save(); return true; }
     return false;
   },
-  deckValid() { return this.state.deck.length >= DECK_MIN && this.state.deck.length <= DECK_MAX; },
+  /* Playable (non-curse) card count for validation. Curses are extra
+     dead weight added by events and do not count toward deck limits. */
+  playableDeckCount() {
+    return this.state.deck.filter(id => !(typeof isCurseId === "function" && isCurseId(id))).length;
+  },
+  deckValid() {
+    const n = this.playableDeckCount();
+    return n >= DECK_MIN && n <= DECK_MAX;
+  },
 
   /* ---- shop ---- */
   rollShopOffers() {
