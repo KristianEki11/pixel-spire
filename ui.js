@@ -436,12 +436,13 @@ const UI = {
   /* ---------- battle results ---------- */
   battleWon(stage) {
     Game.state.hp = Engine.battle.player.hp;            // persist remaining HP
-    const levels = Game.completeStage(stage);
+    const node = this.activeNode || { type: "combat" };
+    const levels = Run.completeCombatNode(stage, node);  // gold + xp + pending relic draft (elite)
     let html = `⛃ +${stage.rewards.currency} gold &nbsp; ✨ +${stage.rewards.xp} XP`;
     if (levels) html += `<br>🆙 LEVEL UP! Now level ${Game.state.playerLevel} (+${levels * 5} Max HP, fully healed).`;
     $("#reward-summary").innerHTML = html;
 
-    // pick-one card reward
+    // pick-one card reward (combat/boss nodes with a card pool)
     const choices = $("#reward-card-choices");
     choices.innerHTML = "";
     const pool = (stage.rewards.cardPool || []).filter(id => !Game.state.unlockedCards.includes(id));
@@ -467,21 +468,32 @@ const UI = {
     this.show("#screen-rewards");
   },
 
+  /* After the card-reward screen: if an elite queued a relic draft,
+     show it; otherwise advance the run node and return to the map. */
   finishRewards() {
-    if (Game.state.gameComplete) {
-      const s = Game.state;
-      $("#victory-summary").innerHTML = `
-        <div class="summary-item"><span>Final Level:</span><span>LV ${s.playerLevel}</span></div>
-        <div class="summary-item"><span>Stages Cleared:</span><span>${s.clearedStages.length} / 24</span></div>
-        <div class="summary-item"><span>Cards Unlocked:</span><span>${s.unlockedCards.length} / ${CARDS.length}</span></div>
-        <div class="summary-item"><span>Hardware Upgrades:</span><span>${(s.relics || []).length} / 2</span></div>
-        <div class="summary-item"><span>Gold Remaining:</span><span>⛃ ${s.currency}</span></div>
-      `;
-      $("#victory-text").innerHTML =
-        `You defeated the Lich Lord at level ${s.playerLevel}!<br>` +
-        `You have climbed the Spire and secured eternal glory. Replay to keep gathering cards!`;
-      this.show("#screen-victory");
-    } else this.renderMap();
+    const s = Game.state;
+    if (s.pendingReward && s.pendingReward.kind === "relicDraft") {
+      const pr = s.pendingReward;
+      s.pendingReward = null; Game.save();
+      this.openRelicDraft(pr.tier, pr.count, { context: "elite" });
+      return;
+    }
+    this.advanceAndMap();
+  },
+
+  showVictory() {
+    const s = Game.state;
+    $("#victory-summary").innerHTML = `
+      <div class="summary-item"><span>Final Level:</span><span>LV ${s.playerLevel}</span></div>
+      <div class="summary-item"><span>Stages Cleared:</span><span>${s.clearedStages.length}</span></div>
+      <div class="summary-item"><span>Cards Unlocked:</span><span>${s.unlockedCards.length} / ${CARDS.length}</span></div>
+      <div class="summary-item"><span>Relics:</span><span>${(s.relics || []).length}</span></div>
+      <div class="summary-item"><span>Gold Remaining:</span><span>⛃ ${s.currency}</span></div>
+    `;
+    $("#victory-text").innerHTML =
+      `You conquered the Spire at level ${s.playerLevel}!<br>` +
+      `Replay to keep gathering cards and relics!`;
+    this.show("#screen-victory");
   },
 
   battleLost() {
