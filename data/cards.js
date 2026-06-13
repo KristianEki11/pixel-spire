@@ -83,3 +83,15 @@ const STARTING_DECK = ["strike","strike","strike","strike","strike","defend","de
 const RARITY_PRICE = { Common: 50, Rare: 100, Epic: 200, Legendary: 400 };
 
 function getCardById(id) { return CARDS.find(c => c.id === id); }
+
+/* Resolve any deck entry to a renderable card object, including curses.
+   Curses live in data/curses.js (loaded before this is called at runtime). */
+function resolveCard(id) {
+  const c = getCardById(id);
+  if (c) return c;
+  if (typeof getCurseById === "function") {
+    const curse = getCurseById(id);
+    if (curse) return curse;
+  }
+  return { id, name: id, manaCost: 0, type: "Skill", rarity: "Common", art: "❓", effect: {}, description: "" };
+}
