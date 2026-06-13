@@ -579,13 +579,14 @@ const UI = {
       if (rendered.has(id)) return;
       rendered.add(id);
 
-      const card = getCardById(id);
+      const card = resolveCard(id);
       const qty = counts[id];
+      const isCurse = isCurseId(id);
       const row = document.createElement("div");
       row.className = `deck-row rarity-${card.rarity}`;
       row.innerHTML = `
         <div class="deck-row-left">
-          <div class="deck-row-cost">${card.manaCost}</div>
+          <div class="deck-row-cost">${isCurse ? "✕" : card.manaCost}</div>
           <div class="deck-row-name">${card.name}</div>
         </div>
         <div class="deck-row-qty">x${qty}</div>
