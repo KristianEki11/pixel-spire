@@ -180,3 +180,349 @@ const Game = {
     this.save(); return true;
   },
 };
+
+/* ============================================================
+   RUN — roguelite node layer built on top of the designed
+   STAGES list. Generates a per-act path of encounters, resolves
+   node types, and applies event/relic/curse effects.
+   Combat/miniboss/boss nodes reuse the existing STAGES + Engine.
+   ============================================================ */
+const Run = {
+
+  /* ---- shorthand ---- */
+  get s() { return Game.state; },
+  cur() { return this.s.run; },
+
+  /* random helpers */
+  shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  },
+  pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
+
+  /* ============================================================
+     generateRun(act) — build the node path for an act.
+     Strategy: take the designed stages for the act. Keep the
+     MiniBoss and Boss in their slots as combat nodes. Fill the
+     remaining slots from NODE_COMPOSITION weights, then enforce
+     pacing (no two events back-to-back when avoidable).
+     ============================================================ */
+  generateRun(act) {
+    const stages = STAGES.filter(st => st.act === act);
+    const normals  = stages.filter(st => st.type === "Normal");
+    const miniboss = stages.find(st => st.type === "MiniBoss");
+    const boss     = stages.find(st => st.type === "Boss");
+    const eliteTier = ACT_RELIC_TIER[act] || "common";
+
+    // Build a weighted bag of non-combat node types for this act.
+    const comp = NODE_COMPOSITION[act] || NODE_COMPOSITION[1];
+    const bag = [];
+    Object.keys(comp).forEach(type => {
+      if (type === "combat") return; // combats come from real stages
+      for (let i = 0; i < comp[type]; i++) bag.push(type);
+    });
+    const shuffledExtras = this.shuffle(bag);
+
+    // Interleave normal-combat stages with the extra (non-combat) nodes.
+    const path = [];
+    const normalQueue = normals.slice();
+    let extraIdx = 0;
+
+    // Alternate: combat, extra, combat, extra ... until both drained.
+    while (normalQueue.length || extraIdx < shuffledExtras.length) {
+      if (normalQueue.length) {
+        const st = normalQueue.shift();
+        path.push({ type: "combat", stageId: st.id });
+      }
+      if (extraIdx < shuffledExtras.length) {
+        path.push(this.makeNode(shuffledExtras[extraIdx++], eliteTier));
+      }
+    }
+
+    // MiniBoss (if any) goes before the final stretch; Boss is always last.
+    if (miniboss) {
+      const insertAt = Math.max(1, Math.floor(path.length * 0.6));
+      path.splice(insertAt, 0, { type: "combat", stageId: miniboss.id, role: "miniboss" });
+    }
+    if (boss) path.push({ type: "combat", stageId: boss.id, role: "boss" });
+
+    // Pacing pass: avoid two 'event' nodes in a row by swapping with a
+    // nearby non-event, non-boss node.
+    this.spaceOutEvents(path);
+
+    this.s.run = {
+      act,
+      stageIndex: 0,
+      path,
+      usedEvents: (this.s.run && this.s.run.usedEvents) ? this.s.run.usedEvents : [],
+      flags: { guaranteeElite: false, shopMarkup: 0 },
+    };
+    Game.save();
+    return this.s.run;
+  },
+
+  /* Build a single non-combat node, resolving an event/treasure tier. */
+  makeNode(type, eliteTier) {
+    if (type === "event")    return { type: "event", dataId: this.rollEventId() };
+    if (type === "elite")    return { type: "elite", tier: eliteTier };
+    if (type === "treasure") return { type: "treasure", tier: eliteTier };
+    if (type === "camp")     return { type: "camp" };
+    if (type === "shop")     return { type: "shop" };
+    return { type: "combat" };
+  },
+
+  /* Weighted event selection respecting actRange and oncePerRun. */
+  rollEventId() {
+    const act = this.s.run ? this.s.run.act : Game.currentAct();
+    const used = (this.s.run && this.s.run.usedEvents) || [];
+    const pool = EVENTS.filter(e =>
+      e.actRange[0] <= act && act <= e.actRange[1] &&
+      !(e.oncePerRun && used.includes(e.id))
+    );
+    if (!pool.length) return this.pick(EVENTS).id;
+    const total = pool.reduce((sum, e) => sum + (e.weight || 1), 0);
+    let roll = Math.random() * total;
+    for (const e of pool) { roll -= (e.weight || 1); if (roll <= 0) return e.id; }
+    return pool[0].id;
+  },
+
+  /* Prevent back-to-back events where a safe swap exists. */
+  spaceOutEvents(path) {
+    for (let i = 1; i < path.length; i++) {
+      if (path[i].type === "event" && path[i - 1].type === "event") {
+        // find the nearest later node that is not event/boss/miniboss to swap
+        for (let j = i + 1; j < path.length; j++) {
+          const t = path[j].type, role = path[j].role;
+          if (t !== "event" && role !== "boss" && role !== "miniboss") {
+            [path[i], path[j]] = [path[j], path[i]];
+            break;
+          }
+        }
+      }
+    }
+  },
+
+  /* ---- current node + advancement ---- */
+  currentNode() {
+    const r = this.cur();
+    if (!r) return null;
+    return r.path[r.stageIndex] || null;
+  },
+  isRunComplete() {
+    const r = this.cur();
+    return r ? r.stageIndex >= r.path.length : false;
+  },
+
+  /* Resolve the stage object backing a combat/elite node. */
+  stageForNode(node) {
+    if (node.stageId) return STAGES.find(st => st.id === node.stageId);
+    // Elite nodes have no designed stage: synthesize one from a normal stage.
+    const normals = STAGES.filter(st => st.act === this.cur().act && st.type === "Normal");
+    const base = this.pick(normals) || STAGES.find(st => st.act === this.cur().act);
+    return base;
+  },
+
+  /* Build a harder stage clone for an elite encounter. */
+  makeEliteStage(node) {
+    const base = this.stageForNode(node);
+    const clone = JSON.parse(JSON.stringify(base));
+    clone.id = `elite_${this.cur().act}_${this.cur().stageIndex}`;
+    clone.type = "Elite";
+    clone.name = `Elite: ${base.name}`;
+    clone.icon = "🔱";
+    clone.isElite = true;
+    clone.eliteTier = node.tier || "common";
+    // Bigger gold; relic draft handled separately as the reward.
+    clone.rewards = Object.assign({}, base.rewards, {
+      currency: Math.round((base.rewards.currency || 40) * 1.8),
+      cardPool: [], // elite reward is a relic draft, not a card
+    });
+    return clone;
+  },
+
+  /* Advance to the next node; regenerate next act when this one ends. */
+  advanceNode() {
+    const r = this.cur();
+    if (!r) return;
+    r.stageIndex++;
+    if (r.stageIndex >= r.path.length) {
+      // Act complete -> move stageIndex pointer in STAGES + start next act.
+      const nextAct = Math.min(3, r.act + 1);
+      if (r.act >= 3) {
+        this.s.gameComplete = true;
+      } else {
+        this.generateRun(nextAct);
+      }
+    }
+    Game.save();
+  },
+
+  /* ============================================================
+     COMBAT COMPLETION — grant rewards for a node win.
+     For elite/boss/combat: gold + xp. Card-pick reward handled
+     by UI (rewards screen). Elite additionally sets a pending
+     relic draft. Does NOT advance the node (UI advances after
+     the reward screen is dismissed).
+     ============================================================ */
+  completeCombatNode(stage, node) {
+    const s = this.s;
+    s.currency += stage.rewards.currency || 0;
+    // copper_coil relic: extra gold on combat clears
+    if (s.relics.includes("copper_coil")) {
+      const coil = getRelicById("copper_coil");
+      s.currency += coil.value;
+    }
+    const levels = Game.gainXp(stage.rewards.xp || 0);
+    s.clearedStages.push(stage.id);
+    this.rollShopOffers ? null : null; // shop offers rolled per-shop node now
+    if (node && node.type === "elite") {
+      s.pendingReward = { kind: "relicDraft", tier: node.tier || "common", count: 3 };
+    }
+    Game.save();
+    return levels;
+  },
+
+  rollShopOffers() { Game.rollShopOffers(); },
+
+  /* ============================================================
+     RELICS — acquisition + immediate onAcquire effects.
+     ============================================================ */
+  addRelic(id) {
+    const s = this.s;
+    if (!id || s.relics.includes(id)) return false;
+    s.relics.push(id);
+    const r = getRelicById(id);
+    if (r && r.onAcquire) {
+      if (r.onAcquire.maxHp) { s.maxHp += r.onAcquire.maxHp; s.hp += r.onAcquire.maxHp; }
+      if (r.onAcquire.gold)  { s.currency += r.onAcquire.gold; }
+      if (r.onAcquire.heal)  { s.hp = Math.min(s.maxHp, s.hp + r.onAcquire.heal); }
+    }
+    Game.save();
+    return true;
+  },
+  addRandomRelic(tier) {
+    const choices = generateRelicChoices(tier, 1, true);
+    if (!choices.length) return null;
+    this.addRelic(choices[0].id);
+    return choices[0];
+  },
+
+  /* ============================================================
+     CURSES + deck mutations used by events/campfire.
+     ============================================================ */
+  addCurse(curseId) {
+    const s = this.s;
+    let id = curseId;
+    if (!id || id === "random") id = this.pick(CURSES).id;
+    s.curses.push(id);
+    s.deck.push(id);            // curses live in the deck so they clog draws
+    Game.save();
+    return id;
+  },
+  removeDeckCardAt(index) {
+    const s = this.s;
+    if (index < 0 || index >= s.deck.length) return false;
+    const id = s.deck[index];
+    s.deck.splice(index, 1);
+    if (isCurseId(id)) {
+      const ci = s.curses.indexOf(id);
+      if (ci !== -1) s.curses.splice(ci, 1);
+    }
+    Game.save();
+    return true;
+  },
+  upgradeDeckCard(id) {
+    if (isCurseId(id)) return false;
+    this.s.cardUpgrades[id] = (this.s.cardUpgrades[id] || 0) + 1;
+    Game.save();
+    return true;
+  },
+  duplicateDeckCard(id) {
+    if (this.s.deck.length >= DECK_MAX) return false;
+    this.s.deck.push(id);
+    Game.save();
+    return true;
+  },
+  randomCardByRarity(rarity) {
+    const pool = CARDS.filter(c => c.rarity === rarity);
+    return pool.length ? this.pick(pool).id : null;
+  },
+  restHeal() {
+    const s = this.s;
+    const amount = Math.round(s.maxHp * 0.25);
+    s.hp = Math.min(s.maxHp, s.hp + amount);
+    Game.save();
+    return amount;
+  },
+
+  /* ============================================================
+     applyEffect(effect, ctx) — resolve a single event effect.
+     Returns an optional descriptor for effects the UI must
+     handle interactively (pickers / drafts):
+       { interactive:"upgradeCard" | "removeCard" | "transformCard"
+                     | "duplicateCard" | "relicDraft" | "cardDraft", ... }
+     Non-interactive effects mutate state and return null.
+     ============================================================ */
+  applyEffect(effect) {
+    const s = this.s;
+    switch (effect.type) {
+      case "gold":        s.currency = Math.max(0, s.currency + effect.value); Game.save(); return null;
+      case "heal": {
+        if (effect.value < 0) s.hp = Math.max(1, s.hp + effect.value);
+        else s.hp = Math.min(s.maxHp, s.hp + effect.value);
+        Game.save(); return null;
+      }
+      case "healPercent": {
+        const amt = Math.round(s.maxHp * effect.value);
+        s.hp = Math.min(s.maxHp, s.hp + amt); Game.save(); return null;
+      }
+      case "maxHp": {
+        s.maxHp = Math.max(1, s.maxHp + effect.value);
+        if (s.hp > s.maxHp) s.hp = s.maxHp;
+        if (effect.value > 0) s.hp += effect.value;
+        Game.save(); return null;
+      }
+      case "addCard": {
+        let id = effect.cardId;
+        if (!id && effect.rarity) id = this.randomCardByRarity(effect.rarity);
+        if (id) { Game.unlockCard(id); if (s.deck.length < DECK_MAX) s.deck.push(id); Game.save(); }
+        return null;
+      }
+      case "addRelic":       this.addRelic(effect.relicId); return null;
+      case "addRelicRandom": this.addRandomRelic(effect.tier || "common"); return null;
+      case "addCurse":       this.addCurse(effect.curseId); return null;
+      case "setFlag": {
+        if (this.cur()) this.cur().flags[effect.flag] = effect.value;
+        Game.save(); return null;
+      }
+      /* interactive effects: signal the UI to open a picker/draft */
+      case "upgradeCard":   return { interactive: "upgradeCard" };
+      case "removeCard":    return { interactive: "removeCard" };
+      case "transformCard": return { interactive: "transformCard" };
+      case "duplicateCard": return { interactive: "duplicateCard" };
+      case "relicDraft":    return { interactive: "relicDraft", tier: effect.tier || "common", count: effect.count || 3 };
+      case "cardDraft":     return { interactive: "cardDraft", rarity: effect.rarity || "Rare", count: effect.count || 3 };
+      default: return null;
+    }
+  },
+
+  /* Mark an event as used (for oncePerRun). */
+  markEventUsed(id) {
+    const r = this.cur();
+    if (r && !r.usedEvents.includes(id)) { r.usedEvents.push(id); Game.save(); }
+  },
+
+  /* Consume the one-shot shop markup flag, returning a price multiplier. */
+  consumeShopMarkup() {
+    const r = this.cur();
+    if (!r) return 1;
+    const m = 1 + (r.flags.shopMarkup || 0);
+    r.flags.shopMarkup = 0;
+    Game.save();
+    return m;
+  },
+};
