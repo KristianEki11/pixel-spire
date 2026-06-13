@@ -237,4 +237,4 @@ const EVENTS = [
 
 ];
 
-function getEventById(id) { return EVENTS.find(e =&gt; e.id === id); }
+function getEventById(id) { return EVENTS.find(e => e.id === id); }

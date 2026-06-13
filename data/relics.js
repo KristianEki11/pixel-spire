@@ -80,7 +80,7 @@ const RELICS = [
 
 ];
 
-function getRelicById(id) { return RELICS.find(r =&gt; r.id === id); }
+function getRelicById(id) { return RELICS.find(r => r.id === id); }
 
 /* Adjacent-tier fallback order so small pools still fill a draft. */
 const RELIC_TIER_ORDER = ["common", "rare", "boss"];
@@ -92,12 +92,12 @@ const RELIC_TIER_ORDER = ["common", "rare", "boss"];
    - If the tier pool is too small, fills from adjacent tiers.
    ============================================================ */
 function generateRelicChoices(tier, count = 3, avoidOwned = true) {
-  const owned = (Game.state &amp;&amp; Game.state.relics) ? Game.state.relics : [];
-  const eligible = (r) =&gt; !(avoidOwned &amp;&amp; owned.includes(r.id));
+  const owned = (Game.state && Game.state.relics) ? Game.state.relics : [];
+  const eligible = (r) => !(avoidOwned && owned.includes(r.id));
 
-  const shuffle = (arr) =&gt; {
+  const shuffle = (arr) => {
     const a = arr.slice();
-    for (let i = a.length - 1; i &gt; 0; i--) {
+    for (let i = a.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
     }
@@ -105,24 +105,24 @@ function generateRelicChoices(tier, count = 3, avoidOwned = true) {
   };
 
   // Primary pool: requested tier.
-  let pool = shuffle(RELICS.filter(r =&gt; r.tier === tier &amp;&amp; eligible(r)));
+  let pool = shuffle(RELICS.filter(r => r.tier === tier && eligible(r)));
   const picks = pool.slice(0, count);
 
   // Fill from adjacent tiers if needed.
-  if (picks.length &lt; count) {
+  if (picks.length < count) {
     const startIdx = RELIC_TIER_ORDER.indexOf(tier);
     const order = RELIC_TIER_ORDER
-      .map((t, i) =&gt; ({ t, dist: Math.abs(i - startIdx) }))
-      .filter(o =&gt; o.t !== tier)
-      .sort((a, b) =&gt; a.dist - b.dist)
-      .map(o =&gt; o.t);
+      .map((t, i) => ({ t, dist: Math.abs(i - startIdx) }))
+      .filter(o => o.t !== tier)
+      .sort((a, b) => a.dist - b.dist)
+      .map(o => o.t);
     for (const t of order) {
-      if (picks.length &gt;= count) break;
+      if (picks.length >= count) break;
       const extra = shuffle(
-        RELICS.filter(r =&gt; r.tier === t &amp;&amp; eligible(r) &amp;&amp; !picks.includes(r))
+        RELICS.filter(r => r.tier === t && eligible(r) && !picks.includes(r))
       );
       for (const r of extra) {
-        if (picks.length &gt;= count) break;
+        if (picks.length >= count) break;
         picks.push(r);
       }
     }

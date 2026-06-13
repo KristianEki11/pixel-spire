@@ -17,5 +17,5 @@ const CURSES = [
     description:"Unplayable. Slowly rots your deck." },
 ];
 
-function getCurseById(id) { return CURSES.find(c =&gt; c.id === id); }
-function isCurseId(id) { return id &amp;&amp; id.indexOf("curse_") === 0; }
+function getCurseById(id) { return CURSES.find(c => c.id === id); }
+function isCurseId(id) { return id && id.indexOf("curse_") === 0; }

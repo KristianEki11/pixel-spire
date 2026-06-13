@@ -230,7 +230,7 @@ const UI = {
     if (Game.state.gameComplete) { this.showVictory(); return; }
     this.activeNode = null;
     this.renderMap();
-  }
+  },
 
   /* ================= BONUS ================= */
   runBonus(stage) {
