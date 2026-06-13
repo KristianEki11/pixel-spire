@@ -1255,10 +1255,14 @@ const UI = {
     $("#btn-shop-shop").addEventListener("click", () => this.renderShop());
     $("#btn-shop-title").addEventListener("click", () => this.renderTitle());
 
-    // Click on shop name logo to return to map
+    // Click on shop name logo to leave. If the shop was entered as a run
+    // node, leaving advances the run; otherwise it just returns to the map.
     const shopLogo = $("#btn-shop-logo");
     if (shopLogo) {
-      shopLogo.addEventListener("click", () => this.renderMap());
+      shopLogo.addEventListener("click", () => {
+        if (this.activeNode && this.activeNode.type === "shop") this.advanceAndMap();
+        else this.renderMap();
+      });
     }
 
     // Deck screen wiring
