@@ -83,8 +83,62 @@ const UI = {
     this.show("#screen-title");
   },
 
-  /* ================= MAP ================= */
+  /* ================= MAP (run-node based) ================= */
   renderMap() {
+    const s = Game.state;
+    if (!s.run) Run.generateRun(Game.currentAct());
+    const r = s.run;
+    $("#map-act-name").textContent = ACTS[r.act - 1].name;
+    this.updateTopbarStats("map");
+
+    const cont = $("#map-container");
+    cont.innerHTML = "";
+
+    const labels = {
+      combat: "Combat", elite: "Elite", event: "Event",
+      camp: "Campfire", treasure: "Treasure", shop: "Merchant"
+    };
+    const icons = {
+      combat: "⚔️", elite: "🔱", event: "❓",
+      camp: "🔥", treasure: "💰", shop: "🛍️"
+    };
+
+    const actDiv = document.createElement("div");
+    actDiv.className = "map-act";
+    actDiv.innerHTML = `<div class="map-act-title">${ACTS[r.act - 1].theme} ${ACTS[r.act - 1].name}</div>`;
+    const row = document.createElement("div");
+    row.className = "map-nodes";
+
+    r.path.forEach((node, i) => {
+      const el = document.createElement("div");
+      el.className = "map-node";
+      let icon = icons[node.type] || "⚔️";
+      let label = labels[node.type] || "Node";
+      if (node.role === "boss")     { el.classList.add("boss");     icon = "☠️"; label = "BOSS"; }
+      if (node.role === "miniboss") { el.classList.add("miniboss"); icon = "👑"; label = "Mini-Boss"; }
+      if (node.type === "elite")    el.classList.add("elite");
+      if (node.type === "treasure")el.classList.add("bonus");
+      if (i < r.stageIndex) el.classList.add("cleared");
+      if (i === r.stageIndex && !s.gameComplete) {
+        el.classList.add("current");
+        el.addEventListener("click", () => this.enterNode(node));
+      }
+      if (i > r.stageIndex) el.classList.add("locked");
+      el.innerHTML = `<div class="node-icon">${icon}</div><div>${label}</div>`;
+      row.appendChild(el);
+      if (i < r.path.length - 1) {
+        const link = document.createElement("span");
+        link.className = "map-link"; link.textContent = "▶";
+        row.appendChild(link);
+      }
+    });
+    actDiv.appendChild(row);
+    cont.appendChild(actDiv);
+    this.show("#screen-map");
+  },
+
+  /* Legacy designed-map renderer kept for reference / fallback. */
+  renderMapLegacy() {
     const s = Game.state;
     $("#map-act-name").textContent = ACTS[Game.currentAct() - 1].name;
     this.updateTopbarStats("map");
@@ -131,6 +185,43 @@ const UI = {
     if (!Game.deckValid()) { this.toast(`Deck must have ${DECK_MIN}–${DECK_MAX} cards!`); return; }
     this.startBattle(stage);
   },
+
+  /* ================= NODE DISPATCH ================= */
+  /* Called when the player clicks the current node on the run map. */
+  enterNode(node) {
+    switch (node.type) {
+      case "combat": {
+        const stage = Run.stageForNode(node);
+        if (!Game.deckValid()) { this.toast(`Deck must have ${DECK_MIN}–${DECK_MAX} cards!`); return; }
+        this.activeNode = node;
+        this.startBattle(stage);
+        break;
+      }
+      case "elite": {
+        if (!Game.deckValid()) { this.toast(`Deck must have ${DECK_MIN}–${DECK_MAX} cards!`); return; }
+        this.activeNode = node;
+        const eliteStage = Run.makeEliteStage(node);
+        this.startBattle(eliteStage);
+        break;
+      }
+      case "event":    this.activeNode = node; this.renderEvent(getEventById(node.dataId)); break;
+      case "camp":     this.activeNode = node; this.renderCampfire(); break;
+      case "treasure":
+        this.activeNode = node;
+        this.openRelicDraft(node.tier || "common", 3, { context: "treasure" });
+        break;
+      case "shop":     this.activeNode = node; this.renderShop(); break;
+      default: this.advanceAndMap();
+    }
+  },
+
+  /* Advance the run pointer then return to the map (or victory). */
+  advanceAndMap() {
+    Run.advanceNode();
+    if (Game.state.gameComplete) { this.showVictory(); return; }
+    this.activeNode = null;
+    this.renderMap();
+  }
 
   /* ================= BONUS ================= */
   runBonus(stage) {
