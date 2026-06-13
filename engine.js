@@ -31,6 +31,38 @@ const Engine = {
     return e;
   },
 
+  /* Effective mana cost after upgrades: every 2nd upgrade level
+     reduces cost by 1 (min 0). Lets campfire/shop upgrades grant
+     the '-mana cost' benefit described in the design. */
+  effectiveCost(card, upgLevel) {
+    if (!upgLevel) return card.manaCost;
+    const reduction = Math.floor(upgLevel / 2);
+    return Math.max(0, card.manaCost - reduction);
+  },
+
+  /* Whether an upgraded card gains the Exhaust keyword (level >= 2). */
+  gainsExhaust(card, upgLevel) {
+    return upgLevel >= 2 && (card.type === "Attack" || card.type === "Skill");
+  },
+
+  /* Sum a relic hook's value across owned relics. */
+  relicValue(hook) {
+    if (!this.battle || !this.battle.relics) return 0;
+    let total = 0;
+    this.battle.relics.forEach(id => {
+      const r = (typeof getRelicById === "function") ? getRelicById(id) : null;
+      if (r && r.hook === hook) total += (r.value || 0);
+    });
+    return total;
+  },
+  hasRelicHook(hook) {
+    if (!this.battle || !this.battle.relics) return false;
+    return this.battle.relics.some(id => {
+      const r = (typeof getRelicById === "function") ? getRelicById(id) : null;
+      return r && r.hook === hook;
+    });
+  },
+
   /* ---- battle setup ---- */
   startBattle(stage, playerState, deckCardIds, cardUpgrades) {
     const enemies = stage.enemies.map((id, i) => {
@@ -57,13 +89,32 @@ const Engine = {
       turn: 1, phase: "player", target: 0, over: false,
     };
     this.log(`⚔️ Battle start: ${stage.name}`);
-    if (this.battle.relics.includes("hellfire_stone")) {
+
+    // Elite scaling: tougher enemies, applied to the cloned elite stage.
+    if (stage.isElite) {
       enemies.forEach(e => {
-        e.hp = Math.max(0, e.hp - 3);
-        this.log(`🔥 Hellfire Stone deals 3 damage to ${e.name}.`);
+        e.maxHp = Math.round(e.maxHp * 1.4);
+        e.hp = e.maxHp;
+        e.strength += 1;
       });
+      this.log(`🔱 Elite encounter: enemies are stronger.`);
+    }
+
+    // Reactor Heart: +1 Max Mana for this combat.
+    const manaRelic = this.relicValue("maxMana");
+    if (manaRelic) { this.battle.player.maxMana += manaRelic; this.battle.player.mana = this.battle.player.maxMana; }
+
+    // Void Crown: start with Strength.
+    const startStr = this.relicValue("combatStartStrength");
+    if (startStr) { this.battle.player.strength += startStr; this.log(`👑 Void Crown grants +${startStr} Strength.`); }
+
+    // Combat-start AoE damage (Hellfire Stone, hook-based).
+    const aoe = this.relicValue("combatStartAoe");
+    if (aoe) {
+      enemies.forEach(e => { e.hp = Math.max(0, e.hp - aoe); this.log(`🔥 Combat-start relic deals ${aoe} to ${e.name}.`); });
       this.checkDeaths();
     }
+
     this.startPlayerTurn();
   },
 
@@ -127,6 +178,13 @@ const Engine = {
       return true;
     }
     if (b.player.hp <= 0 && !b.over) {
+      // Phoenix Chip: survive once per combat at 1 HP.
+      if (this.hasRelicHook("deathSave") && !b.deathSaveUsed) {
+        b.deathSaveUsed = true;
+        b.player.hp = 1;
+        this.log("🔥 Phoenix Chip saves you at 1 HP!");
+        return false;
+      }
       b.over = true;
       this.log("💔 You have fallen...");
       if (this.onEnd) this.onEnd(false);
@@ -148,7 +206,24 @@ const Engine = {
     this.tickPoison(b.player, "Hero");
     if (this.checkDeaths()) return;
     b.player.mana = b.player.maxMana;
-    this.drawCards(5);
+
+    // Aegis Core: combat-start armor (turn 1 only).
+    if (b.turn === 1) {
+      const startArmor = this.relicValue("combatStartArmor");
+      if (startArmor) { b.player.armor += startArmor; this.log(`🛡️ Relic grants ${startArmor} Block.`); }
+      const ftMana = this.relicValue("firstTurnMana");
+      if (ftMana) { b.player.mana += ftMana; this.log(`🔋 Relic grants ${ftMana} extra mana.`); }
+    }
+
+    // Regen Matrix: heal at the start of each turn.
+    const turnHeal = this.relicValue("turnHeal");
+    if (turnHeal && b.player.hp > 0) {
+      const h = Math.min(turnHeal, b.player.maxHp - b.player.hp);
+      if (h > 0) { b.player.hp += h; this.log(`💚 Regen relic heals ${h} HP.`); }
+    }
+
+    const draw = 5 + this.relicValue("extraDraw"); // Overclock Chip
+    this.drawCards(draw);
     this.log(`— Turn ${b.turn}: your move —`);
     this.update();
   },
@@ -156,8 +231,11 @@ const Engine = {
   canPlay(cardId) {
     const b = this.battle;
     if (b.phase !== "player" || b.over) return false;
+    if (typeof isCurseId === "function" && isCurseId(cardId)) return false; // curses unplayable
     const card = getCardById(cardId);
-    return b.player.mana >= card.manaCost;
+    if (!card) return false;
+    const cost = this.effectiveCost(card, b.cardUpgrades[cardId] || 0);
+    return b.player.mana >= cost;
   },
 
   /* Play card at hand index, against current target */
@@ -166,14 +244,15 @@ const Engine = {
     const cardId = b.hand[handIndex];
     if (!cardId || !this.canPlay(cardId)) return false;
     const card = getCardById(cardId);
-    const e = this.upgradedEffect(card, b.cardUpgrades[cardId] || 0);
+    const upg = b.cardUpgrades[cardId] || 0;
+    const e = this.upgradedEffect(card, upg);
     const p = b.player;
 
-    p.mana -= card.manaCost;
+    p.mana -= this.effectiveCost(card, upg);
     b.hand.splice(handIndex, 1);
     
-    // Check for Exhaust effect
-    if (card.description && (card.description.includes("Exhaust") || card.id === "prepare" || card.id === "void_shield")) {
+    // Check for Exhaust effect (base description, or gained via upgrade)
+    if ((card.description && (card.description.includes("Exhaust") || card.id === "prepare" || card.id === "void_shield")) || this.gainsExhaust(card, upg)) {
       this.log(`✨ ${card.name} is exhausted and removed from this battle.`);
     } else {
       b.discardPile.push(cardId);
@@ -181,13 +260,18 @@ const Engine = {
     
     this.log(`▶️ You play ${card.name}.`);
 
-    // Vampire Fang relic healing
-    if (card.type === "Attack" && b.relics && b.relics.includes("vampire_fang") && p.hp > 0) {
-      const healAmt = Math.min(1, p.maxHp - p.hp);
-      if (healAmt > 0) {
-        p.hp += healAmt;
-        this.log(`🩸 Vampire Fang heals you for 1 HP.`);
+    // Vampire Fang relic healing (hook-based)
+    if (card.type === "Attack" && p.hp > 0) {
+      const fang = this.relicValue("onAttackHeal");
+      if (fang) {
+        const healAmt = Math.min(fang, p.maxHp - p.hp);
+        if (healAmt > 0) { p.hp += healAmt; this.log(`🩸 Vampire Fang heals you for ${healAmt} HP.`); }
       }
+    }
+
+    // Plasma Edge: bonus attack damage (added to this card's damage).
+    if (card.type === "Attack" && e.damage) {
+      e.damage += this.relicValue("bonusDamage");
     }
 
     // Void Strike extra energy logic
