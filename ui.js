@@ -210,7 +210,14 @@ const UI = {
         this.activeNode = node;
         this.openRelicDraft(node.tier || "common", 3, { context: "treasure" });
         break;
-      case "shop":     this.activeNode = node; this.renderShop(); break;
+      case "shop":
+        this.activeNode = node;
+        // Consume any pending shop markup (e.g. Merchant's Debt) for THIS shop.
+        Game.state.activeShopMarkup = Run.consumeShopMarkup() - 1; // store as fraction
+        Game.rollShopOffers();
+        Game.save();
+        this.renderShop();
+        break;
       default: this.advanceAndMap();
     }
   },

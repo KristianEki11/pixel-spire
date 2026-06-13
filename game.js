@@ -141,9 +141,15 @@ const Game = {
     }
     this.state.shopOffers = picks;
   },
-  buyCard(id) {
+  /* Card price including any one-shop markup (from Merchant's Debt). */
+  cardPrice(id) {
     const card = getCardById(id);
-    const price = RARITY_PRICE[card.rarity];
+    const base = RARITY_PRICE[card.rarity];
+    const markup = this.state.activeShopMarkup || 0;
+    return Math.round(base * (1 + markup));
+  },
+  buyCard(id) {
+    const price = this.cardPrice(id);
     if (this.state.currency < price) return false;
     this.state.currency -= price;
     this.unlockCard(id);
