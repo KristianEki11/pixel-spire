@@ -2,7 +2,7 @@
    GAME — persistent state, progression, leveling, shop logic.
    ============================================================ */
 const SAVE_KEY = "pixel_spire_save_v1";
-const DECK_MIN = 15, DECK_MAX = 30, MAX_COPIES = 3;
+const DECK_MIN = 10, DECK_MAX = 30, MAX_COPIES = 3;
 
 const Game = {
   state: null,
@@ -64,16 +64,29 @@ const Game = {
     const s = this.state;
     s.playerXp += amount;
     let levels = 0;
+    let manaGained = 0;
     while (s.playerXp >= this.xpForNext()) {
       s.playerXp -= this.xpForNext();
       s.playerLevel++;
       s.maxHp += 5;
       s.hp = s.maxHp;               // full heal on level up
-      if (s.playerLevel % 4 === 0) s.maxMana++; // every 4 levels: +1 mana
+      
+      let getsMana = false;
+      if (s.playerLevel <= 10) {
+        getsMana = true;
+      } else if (s.playerLevel <= 20) {
+        getsMana = (s.playerLevel % 2 !== 0); // odd levels only
+      } else if (s.playerLevel <= 30) {
+        getsMana = (s.playerLevel % 3 === 0);
+      } else {
+        getsMana = (s.playerLevel % 4 === 0);
+      }
+      if (getsMana) { s.maxMana++; manaGained++; }
+      
       levels++;
     }
     this.save();
-    return levels;
+    return { levels, manaGained };
   },
 
   /* ---- stage / progression ---- */
@@ -88,12 +101,12 @@ const Game = {
     const s = this.state;
     s.clearedStages.push(stage.id);
     s.currency += stage.rewards.currency;
-    const levels = this.gainXp(stage.rewards.xp);
+    const levelInfo = this.gainXp(stage.rewards.xp);
     if (s.stageIndex < STAGES.length - 1) s.stageIndex++;
     else s.gameComplete = true;
     this.rollShopOffers();          // fresh shop each stage
     this.save();
-    return levels;
+    return levelInfo;
   },
   onDefeat() {
     const s = this.state;
@@ -133,7 +146,7 @@ const Game = {
   },
   addToDeck(id) { if (this.canAddToDeck(id)) { this.state.deck.push(id); this.save(); return true; } return false; },
   removeFromDeck(index) {
-    if (this.state.deck.length > DECK_MIN) { this.state.deck.splice(index, 1); this.save(); return true; }
+    if (this.state.deck.length > 0) { this.state.deck.splice(index, 1); this.save(); return true; }
     return false;
   },
   /* Playable (non-curse) card count for validation. Curses are extra
@@ -397,13 +410,13 @@ const Run = {
       const coil = getRelicById("copper_coil");
       s.currency += coil.value;
     }
-    const levels = Game.gainXp(stage.rewards.xp || 0);
+    const levelInfo = Game.gainXp(stage.rewards.xp || 0);
     s.clearedStages.push(stage.id);
     if (node && node.type === "elite") {
       s.pendingReward = { kind: "relicDraft", tier: node.tier || "common", count: 3 };
     }
     Game.save();
-    return levels;
+    return levelInfo;
   },
 
   rollShopOffers() { Game.rollShopOffers(); },

@@ -110,6 +110,7 @@
         <span id="deck-currency-top"     class="stat gold">⛃ 0</span>
       </div>
       <div class="topbar-buttons">
+        <button id="btn-deck-map"        class="px-btn">MAP</button>
         <button id="btn-deck-deck"       class="px-btn active">DECK</button>
         <button id="btn-deck-cards"      class="px-btn">CARDS</button>
         <button id="btn-deck-shop"       class="px-btn">SHOP</button>
@@ -181,6 +182,7 @@
         <span id="collection-currency-top"     class="stat gold">⛃ 0</span>
       </div>
       <div class="topbar-buttons">
+        <button id="btn-collection-map"  class="px-btn">MAP</button>
         <button id="btn-collection-deck"       class="px-btn">DECK</button>
         <button id="btn-collection-cards"      class="px-btn active">CARDS</button>
         <button id="btn-collection-shop"       class="px-btn">SHOP</button>
@@ -233,6 +235,7 @@
         <span id="shop-currency-top"     class="stat gold">⛃ 0</span>
       </div>
       <div class="topbar-buttons">
+        <button id="btn-shop-map"        class="px-btn">MAP</button>
         <button id="btn-shop-deck"       class="px-btn">DECK</button>
         <button id="btn-shop-cards"      class="px-btn">CARDS</button>
         <button id="btn-shop-shop"       class="px-btn active">SHOP</button>
@@ -405,6 +408,18 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
+
+  <!-- ============ CONFIRMATION MODAL ============ -->
+  <div id="confirm-modal" class="modal-overlay hidden">
+    <div class="modal-panel">
+      <h3 id="confirm-title">New Game?</h3>
+      <p id="confirm-message">Are you sure you want to start a new game? This will erase all your current progress.</p>
+      <div class="modal-buttons">
+        <button id="btn-confirm-yes" class="px-btn red-btn">START NEW</button>
+        <button id="btn-confirm-no" class="px-btn">CANCEL</button>
+      </div>
+    </div>
+  </div>
 
 </div><!-- #app -->
 

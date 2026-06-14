@@ -65,7 +65,7 @@ const UI = {
       <div class="card-cost">${card.manaCost}</div>
       ${upg ? `<div class="upg-badge">+${upg}</div>` : ""}
       ${opts.copies ? `<div class="copy-badge">×${opts.copies}</div>` : ""}
-      <div class="card-art ${artClass}">${card.art}</div>
+      <div class="card-art ${artClass}">${card.art.includes('/') ? `<img src="${card.art}" style="width:100%; height:100%; object-fit:cover; image-rendering:pixelated;">` : card.art}</div>
       <div class="card-name">${card.name}</div>
       <div class="card-desc">${desc}</div>
       <div class="card-footer">
@@ -234,14 +234,21 @@ const UI = {
 
   /* ================= BONUS ================= */
   runBonus(stage) {
-    const levels = Game.completeStage(stage);
+    const levelInfo = Game.completeStage(stage);
     let html = `You found <b>⛃ ${stage.rewards.currency}</b> and gained <b>${stage.rewards.xp} XP</b>!`;
     if (stage.rewards.freeCard) {
       const c = getCardById(stage.rewards.freeCard);
       const isNew = Game.unlockCard(c.id);
       html += `<br>📜 Card found: <b>${c.name}</b> ${isNew ? "(NEW — unlocked!)" : "(already owned)"}`;
     }
-    if (levels) html += `<br>🆙 LEVEL UP! Now level ${Game.state.playerLevel} (+${levels * 5} Max HP, fully healed).`;
+    if (levelInfo.levels > 0) {
+      html += `<br><br>🆙 <b>LEVEL UP!</b> You are now level ${Game.state.playerLevel}!<br>`;
+      html += `&nbsp;• +${levelInfo.levels * 5} Max HP (Fully Healed)<br>`;
+      if (levelInfo.manaGained > 0) {
+        html += `&nbsp;• +${levelInfo.manaGained} Max Mana<br>`;
+      }
+      this.toast(`Level Up! You reached Lv. ${Game.state.playerLevel}`);
+    }
     $("#bonus-summary").innerHTML = html;
     this.show("#screen-bonus");
   },
@@ -254,7 +261,15 @@ const UI = {
     Engine.onLog = (m) => console.log(m);
     Engine.onHit = (who, uid) => this.flashHit(who, uid);
     Engine.onEnd = (won) => setTimeout(() => won ? this.battleWon(stage) : this.battleLost(), 800);
+    Engine.onPlayerTurnStart = () => this.checkAutoEndTurn();
     $("#battle-stage-name").textContent = `${stage.icon} ${stage.name} [${stage.type}]`;
+    
+    const battleScreen = $("#screen-battle");
+    battleScreen.className = "screen";
+    if (stage.act) {
+      battleScreen.classList.add(`act-${stage.act}`);
+    }
+
     Engine.startBattle(stage, Game.state, Game.state.deck, Game.state.cardUpgrades);
     this.show("#screen-battle");
   },
@@ -310,6 +325,26 @@ const UI = {
     this.isExecuting = false;
     $("#btn-end-turn").disabled = false;
     this.renderBattle();
+    this.checkAutoEndTurn();
+  },
+
+  checkAutoEndTurn() {
+    const b = Engine.battle;
+    if (!b || b.phase !== "player" || b.over) return;
+    if (this.queuedCards.length > 0) return;
+
+    const hasPlayable = b.hand.some(cardId => Engine.canPlay(cardId));
+    if (!hasPlayable) {
+      setTimeout(() => {
+        if (b.phase === "player" && !b.over && this.queuedCards.length === 0) {
+          const stillHasPlayable = b.hand.some(cardId => Engine.canPlay(cardId));
+          if (!stillHasPlayable) {
+            this.toast("No playable cards. Ending turn...");
+            Engine.endPlayerTurn();
+          }
+        }
+      }, 1000);
+    }
   },
 
   flashHit(who, uid) {
@@ -447,9 +482,16 @@ const UI = {
   battleWon(stage) {
     Game.state.hp = Engine.battle.player.hp;            // persist remaining HP
     const node = this.activeNode || { type: "combat" };
-    const levels = Run.completeCombatNode(stage, node);  // gold + xp + pending relic draft (elite)
+    const levelInfo = Run.completeCombatNode(stage, node);  // gold + xp + pending relic draft (elite)
     let html = `⛃ +${stage.rewards.currency} gold &nbsp; ✨ +${stage.rewards.xp} XP`;
-    if (levels) html += `<br>🆙 LEVEL UP! Now level ${Game.state.playerLevel} (+${levels * 5} Max HP, fully healed).`;
+    if (levelInfo.levels > 0) {
+      html += `<br><br>🆙 <b>LEVEL UP!</b> You are now level ${Game.state.playerLevel}!<br>`;
+      html += `&nbsp;• +${levelInfo.levels * 5} Max HP (Fully Healed)<br>`;
+      if (levelInfo.manaGained > 0) {
+        html += `&nbsp;• +${levelInfo.manaGained} Max Mana<br>`;
+      }
+      this.toast(`Level Up! You reached Lv. ${Game.state.playerLevel}`);
+    }
     $("#reward-summary").innerHTML = html;
 
     // pick-one card reward (combat/boss nodes with a card pool)
@@ -599,7 +641,7 @@ const UI = {
           if (Game.removeFromDeck(idx)) {
             this.renderDeck();
           } else {
-            this.toast(`Deck cannot go below ${DECK_MIN} cards!`);
+            this.toast("Deck is empty!");
           }
         }
       });
@@ -1254,9 +1296,25 @@ const UI = {
   init() {
     // Title
     $("#btn-newgame").addEventListener("click", () => {
-      if (Game.hasSave() && !confirm("Overwrite existing save?")) return;
-      Game.newGame();
-      this.renderMap();
+      if (Game.hasSave()) {
+        const modal = $("#confirm-modal");
+        modal.classList.remove("hidden");
+        
+        // Wire up Yes
+        $("#btn-confirm-yes").onclick = () => {
+          modal.classList.add("hidden");
+          Game.newGame();
+          this.renderMap();
+        };
+        
+        // Wire up No
+        $("#btn-confirm-no").onclick = () => {
+          modal.classList.add("hidden");
+        };
+      } else {
+        Game.newGame();
+        this.renderMap();
+      }
     });
     $("#btn-continue").addEventListener("click", () => {
       if (Game.load()) this.renderMap();
@@ -1278,6 +1336,10 @@ const UI = {
     $("#btn-shop-cards").addEventListener("click", () => this.renderCollection());
     $("#btn-shop-shop").addEventListener("click", () => this.renderShop());
     $("#btn-shop-title").addEventListener("click", () => this.renderTitle());
+    $("#btn-shop-map").addEventListener("click", () => {
+      if (this.activeNode && this.activeNode.type === "shop") this.advanceAndMap();
+      else this.renderMap();
+    });
 
     // Click on shop name logo to leave. If the shop was entered as a run
     // node, leaving advances the run; otherwise it just returns to the map.
@@ -1291,6 +1353,7 @@ const UI = {
 
     // Deck screen wiring
     $("#btn-deck-logo").addEventListener("click", () => this.renderMap());
+    $("#btn-deck-map").addEventListener("click", () => this.renderMap());
     $("#btn-deck-cards").addEventListener("click", () => this.renderCollection());
     $("#btn-deck-deck").addEventListener("click", () => this.renderDeck());
     $("#btn-deck-shop").addEventListener("click", () => this.renderShop());
@@ -1310,11 +1373,12 @@ const UI = {
         this.toast("Deck saved successfully!");
         this.renderMap();
       } else {
-        this.toast(`Deck must have ${DECK_MIN}–${DECK_MAX} cards!`);
+        alert("Deck must have at least 10 cards!");
       }
     });
     // Collection screen topbar
     $("#btn-collection-logo").addEventListener("click", () => this.renderMap());
+    $("#btn-collection-map").addEventListener("click", () => this.renderMap());
     $("#btn-collection-deck").addEventListener("click", () => this.renderDeck());
     $("#btn-collection-cards").addEventListener("click", () => this.renderCollection());
     $("#btn-collection-shop").addEventListener("click", () => this.renderShop());

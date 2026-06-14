@@ -1,10 +1,10 @@
 # Product Requirements Document (PRD)
 # Pixel Spire — Deck-Building Roguelite
 
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 **Author:** Ki Dev
-**Date:** 2026-06-13  
-**Status:** ✅ v1.1.0 Complete — Live on GitHub Pages
+**Date:** 2026-06-15  
+**Status:** ✅ v1.2.0 Complete — Live on GitHub Pages
 
 ---
 
@@ -42,13 +42,13 @@
 - ✅ 56 playable cards across 4 rarity tiers (Common, Rare, Epic, Legendary)
 - ✅ 18 unique enemies with predictable intent cycles across 3 acts
 - ✅ Turn-based combat engine with status effects (Armor, Poison, Strength, Weak, Vulnerable)
-- ✅ Deck Editor (15–30 cards, max 3 copies per card)
+- ✅ Deck Editor (10–30 cards, max 3 copies per card)
 - ✅ Card Collection viewer (all 56 cards, locked/unlocked state)
 - ✅ In-game Shop (unlock cards, upgrade existing cards, buy Relics, buy Max HP, Full Heal)
 - ✅ Player progression system (Level, XP, Max HP scaling, Mana scaling)
 - ✅ Persistent save state via `localStorage`
 - ✅ Post-defeat roguelite loop (lose 20% gold, keep all progress, revive at full HP)
-- ✅ Full-screen Retro pixel-art UI with Space Mono & Courier Prime typography
+- ✅ Full-screen Retro pixel-art UI with dedicated image assets, Space Mono & Courier Prime typography
 - ✅ Responsive layout for desktop browsers
 
 ### 4.2 Out-of-Scope (Future Versions)
@@ -83,9 +83,9 @@
 ### 5.2 Combat System
 
 #### 5.2.1 Turn Structure
-1. **Player Turn Start:** Player armor resets to 0. Poison ticks. Draw 5 cards. Mana refills to max.
-2. **Player Action Phase:** Player plays cards from hand spending Mana. Cards are discarded after use.
-3. **Player End Turn:** Remaining hand discarded. Debuffs (Weak/Vulnerable) decay by 1 per turn.
+1. **Player Turn Start:** Player armor resets to 0. Poison ticks. Draw cards until reaching Target Hand Size (Default 5). Mana refills to max.
+2. **Player Action Phase:** Player plays cards from hand spending Mana. Cards are discarded after use. Auto-end turn triggers if no playable cards remain.
+3. **Player End Turn:** Remaining cards in hand are retained for the next turn. Debuffs (Weak/Vulnerable) decay by 1 per turn.
 4. **Enemy Phase:** Enemies act sequentially (with 650ms delay between actions) using their intent pattern cycle.
 5. **End of Round:** Debuffs on enemies decay. Turn counter increments. Repeat.
 
@@ -118,7 +118,7 @@ actualDamage  = max(0, effectiveDamage - target.armor)
 | `manaCost` | Energy required to play (0–5) |
 | `type` | Attack / Defense / Skill / Buff / Debuff |
 | `rarity` | Common / Rare / Epic / Legendary |
-| `art` | Emoji used as card artwork |
+| `art` | Image path (e.g. `assets/cards/*.png`) |
 | `effect` | Object: `{damage, hits, aoe, armor, heal, draw, energy, poison, vulnerable, weak, strength, selfDamage, purge}` |
 | `description` | Template string with `{d}`, `{a}`, `{h}`, `{p}`, `{s}` placeholders |
 
@@ -169,7 +169,7 @@ Enemies telegraph their next action visually using intent icons on the map. They
 #### 5.5.1 Player Leveling
 - XP gained per stage completed (60–600 XP depending on stage type)
 - XP to level up: `currentLevel × 100`
-- Level up rewards: +5 Max HP (heals to full), every 4 levels: +1 Max Mana
+- Level up rewards: +5 Max HP (heals to full), +Max Mana depending on level brackets (Levels 1-10: every level, 11-20: odd levels, 21-30: every 3rd level, >30: every 4th level)
 
 #### 5.5.2 Currency (Gold ⛃)
 - Earned from completing stages (35–400 gold)
@@ -221,12 +221,13 @@ Relics provide permanent passive benefits throughout the run.
 
 | Category | Requirement |
 |----------|------------|
-| **Performance** | Game must be playable with 0 loading screens on modern desktop browsers |
+| **Performance & Efficiency** | Game must load easily on network speeds as low as 1 Mbps. Playable with 0 loading screens. |
+| **Hardware Constraints** | Must run smoothly on low-end devices (e.g., 500 MB RAM and 1.0 GHz CPU). |
 | **Compatibility** | Chrome 90+, Firefox 88+, Edge 90+, Safari 14+ |
 | **Deployment** | Must run as a static site (GitHub Pages, no server-side logic) |
-| **File Size** | Total project under 300KB (no external assets) |
+| **File Size** | Total project under 500KB |
 | **Persistence** | Save data must survive browser refresh and tab close |
-| **Accessibility** | Emoji-based artwork ensures cross-platform visual compatibility without image dependencies |
+| **Accessibility** | Clear UI layout and semantic HTML elements. |
 
 ---
 
@@ -288,3 +289,4 @@ All scripts use plain `const`/`function` globals (no ES Modules) for GitHub Page
 |---------|------|---------|
 | 1.0.0 | 2026-06-12 | Initial release — full 3-act campaign, 51 cards, 18 enemies, shop, progression |
 | 1.1.0 | 2026-06-13 | Added Relics, Exhaust mechanic, queued card plays, expanded to 56 cards, shop UI revamp |
+| 1.2.0 | 2026-06-15 | Replaced emoji art with dedicated image assets, added card hand retention, auto-end turn, updated minimum deck size to 10, dynamic mana progression scaling, UI Map navigation improvements |

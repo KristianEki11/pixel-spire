@@ -222,10 +222,14 @@ const Engine = {
       if (h > 0) { b.player.hp += h; this.log(`💚 Regen relic heals ${h} HP.`); }
     }
 
-    const draw = 5 + this.relicValue("extraDraw"); // Overclock Chip
-    this.drawCards(draw);
+    const targetHandSize = 5 + this.relicValue("extraDraw");
+    const drawAmt = Math.max(0, targetHandSize - b.hand.length);
+    if (drawAmt > 0) {
+      this.drawCards(drawAmt);
+    }
     this.log(`— Turn ${b.turn}: your move —`);
     this.update();
+    if (this.onPlayerTurnStart) this.onPlayerTurnStart();
   },
 
   canPlay(cardId) {
@@ -333,9 +337,6 @@ const Engine = {
   endPlayerTurn() {
     const b = this.battle;
     if (b.phase !== "player" || b.over) return;
-    // discard remaining hand
-    b.discardPile.push(...b.hand);
-    b.hand = [];
     this.decayDebuffs(b.player);
     b.phase = "enemy";
     this.update();
