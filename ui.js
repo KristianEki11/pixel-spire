@@ -4,7 +4,6 @@
 const $ = (sel) => document.querySelector(sel);
 
 const UI = {
-  queuedCards: [],
   isExecuting: false,
   lastTurnId: -1,
 
@@ -46,6 +45,20 @@ const UI = {
       return el;
     }
 
+    if (opts.blinded) {
+      el.innerHTML = `
+        <div class="card-cost">?</div>
+        <div class="card-art type-skill">👁️</div>
+        <div class="card-name">???</div>
+        <div class="card-desc" style="text-align: center; font-weight: bold; margin-top: 24px;">BLINDED</div>
+        <div class="card-footer">
+          <span class="card-type">UNKNOWN</span>
+        </div>
+      `;
+      if (opts.onClick) el.addEventListener("click", opts.onClick);
+      return el;
+    }
+
     const upg = opts.upgLevel || 0;
     const e = Engine.upgradedEffect(card, upg);
     let desc = card.description
@@ -71,7 +84,8 @@ const UI = {
       <div class="card-footer">
         <span class="card-type">${displayType}</span>
       </div>
-      ${opts.price != null ? `<div class="price-tag">⛃ ${opts.price}</div>` : ""}`;
+      ${opts.price != null ? `<div class="price-tag">⛃ ${opts.price}</div>` : ""}
+      ${opts.lagged ? `<div class="lagged-overlay">LAGGED</div>` : ""}`;
       
     if (opts.onClick) el.addEventListener("click", opts.onClick);
     return el;
@@ -254,14 +268,12 @@ const UI = {
   },
 
   startBattle(stage) {
-    this.queuedCards = [];
     this.isExecuting = false;
     this.lastTurnId = -1;
     Engine.onUpdate = () => this.renderBattle();
     Engine.onLog = (m) => console.log(m);
     Engine.onHit = (who, uid) => this.flashHit(who, uid);
     Engine.onEnd = (won) => setTimeout(() => won ? this.battleWon(stage) : this.battleLost(), 800);
-    Engine.onPlayerTurnStart = () => this.checkAutoEndTurn();
     $("#battle-stage-name").textContent = `${stage.icon} ${stage.name} [${stage.type}]`;
     
     const battleScreen = $("#screen-battle");
@@ -274,77 +286,92 @@ const UI = {
     this.show("#screen-battle");
   },
 
-  async playQueuedHand() {
-    if (this.isExecuting || this.queuedCards.length === 0) return;
+  async playSelectedHand() {
+    const b = Engine.battle;
+    if (!b || this.isExecuting || b.selectedCards.length === 0) return;
     this.isExecuting = true;
-    
-    // Disable interactions
-    $("#btn-end-turn").disabled = true;
+
+    // Lock UI buttons
+    $("#btn-play-hand").disabled = true;
+    $("#btn-discard").disabled = true;
     document.querySelectorAll(".card").forEach(el => el.style.pointerEvents = "none");
 
-    const b = Engine.battle;
-    if (!b) return;
+    const playedCardIndices = [...b.selectedCards].sort((a, b) => a - b);
+    const playedCards = playedCardIndices.map(idx => b.hand[idx]);
 
-    for (let i = 0; i < this.queuedCards.length; i++) {
-      if (b.over) break;
-      const q = this.queuedCards[i];
-      const queuedRow = $("#queued-cards-row");
+    // Move selected cards visually to the queued-cards-row container first
+    const queuedRow = $("#queued-cards-row");
+    queuedRow.innerHTML = "";
+    playedCards.forEach(cardId => {
+      const card = resolveCard(cardId);
+      const el = this.cardEl(card, {
+        upgLevel: b.cardUpgrades[cardId] || 0
+      });
+      el.classList.add("queued-card");
+      queuedRow.appendChild(el);
+    });
+
+    // Temporarily hide the selected cards from the player's hand fan
+    const hand = $("#hand");
+    hand.innerHTML = "";
+    const totalRemaining = b.hand.length - playedCardIndices.length;
+    const maxAngle = Math.min(28, totalRemaining * 4);
+    let remainingIdx = 0;
+    b.hand.forEach((cardId, i) => {
+      if (playedCardIndices.includes(i)) return;
+      const card = resolveCard(cardId);
+      const isCurse = isCurseId(cardId);
+      const el = this.cardEl(card, {
+        upgLevel: b.cardUpgrades[cardId] || 0
+      });
+      if (isCurse) el.classList.add("unplayable");
+      const mid = (totalRemaining - 1) / 2;
+      const angle = totalRemaining > 1 ? ((remainingIdx - mid) / mid) * (maxAngle / 2) : 0;
+      const yOff  = totalRemaining > 1 ? Math.abs(remainingIdx - mid) * 6 : 0;
+      el.style.setProperty("--fan-angle", `${angle}deg`);
+      el.style.transform = `rotate(${angle}deg) translateY(${yOff}px)`;
+      remainingIdx++;
+      hand.appendChild(el);
+    });
+
+    // Animate cards one by one
+    for (let i = 0; i < playedCards.length; i++) {
+      const cardId = playedCards[i];
       const cardEl = queuedRow.children[i];
       
-      if (cardEl) {
-        const card = getCardById(q.id);
-        const isHostile = card.type === "Attack" || card.type === "Debuff";
-        const targetEl = isHostile ? document.querySelector(`[data-uid="${b.target}"]`) : document.querySelector("#player-unit");
-        
-        if (targetEl) {
-          const cardRect = cardEl.getBoundingClientRect();
-          const targetRect = targetEl.getBoundingClientRect();
-          const throwX = (targetRect.left + targetRect.width / 2) - (cardRect.left + cardRect.width / 2);
-          const throwY = (targetRect.top + targetRect.height / 2) - (cardRect.top + cardRect.height / 2);
-          cardEl.style.setProperty("--throw-x", `${throwX}px`);
-          cardEl.style.setProperty("--throw-y", `${throwY}px`);
-          cardEl.classList.add(isHostile ? "throw-hostile" : "throw-friendly");
-        }
+      const card = resolveCard(cardId);
+      const isHostile = card.type === "Attack" || card.type === "Debuff";
+      const targetEl = isHostile ? document.querySelector(`[data-uid="${b.target}"]`) : document.querySelector("#player-unit");
+      
+      if (cardEl && targetEl) {
+        const cardRect = cardEl.getBoundingClientRect();
+        const targetRect = targetEl.getBoundingClientRect();
+        const throwX = (targetRect.left + targetRect.width / 2) - (cardRect.left + cardRect.width / 2);
+        const throwY = (targetRect.top + targetRect.height / 2) - (cardRect.top + cardRect.height / 2);
+        cardEl.style.setProperty("--throw-x", `${throwX}px`);
+        cardEl.style.setProperty("--throw-y", `${throwY}px`);
+        cardEl.classList.add(isHostile ? "throw-hostile" : "throw-friendly");
       }
       
       await new Promise(res => setTimeout(res, 450));
       
-      const handIndex = b.hand.indexOf(q.id);
-      if (handIndex !== -1) {
-        Engine.playCard(handIndex);
-      }
+      // Target hit flash
+      this.flashHit(isHostile ? "enemy" : "player", isHostile ? b.target : null);
       
-      this.queuedCards.splice(i, 1);
-      i--;
-      this.renderBattle();
+      if (cardEl) {
+        cardEl.style.opacity = "0";
+      }
       
       await new Promise(res => setTimeout(res, 200));
     }
-    
-    this.queuedCards = [];
+
+    // Call engine to resolve the combat calculations and advance turn
+    Engine.playHand();
+
+    // Reset states and redraw board
+    queuedRow.innerHTML = "";
     this.isExecuting = false;
-    $("#btn-end-turn").disabled = false;
     this.renderBattle();
-    this.checkAutoEndTurn();
-  },
-
-  checkAutoEndTurn() {
-    const b = Engine.battle;
-    if (!b || b.phase !== "player" || b.over) return;
-    if (this.queuedCards.length > 0) return;
-
-    const hasPlayable = b.hand.some(cardId => Engine.canPlay(cardId));
-    if (!hasPlayable) {
-      setTimeout(() => {
-        if (b.phase === "player" && !b.over && this.queuedCards.length === 0) {
-          const stillHasPlayable = b.hand.some(cardId => Engine.canPlay(cardId));
-          if (!stillHasPlayable) {
-            this.toast("No playable cards. Ending turn...");
-            Engine.endPlayerTurn();
-          }
-        }
-      }, 1000);
-    }
   },
 
   flashHit(who, uid) {
@@ -360,6 +387,17 @@ const UI = {
     if (unit.poison > 0)     chips.push(`<span class="status-chip poison">☠️${unit.poison}</span>`);
     if (unit.vulnerable > 0) chips.push(`<span class="status-chip vulnerable">🎯${unit.vulnerable}</span>`);
     if (unit.weak > 0)       chips.push(`<span class="status-chip weak">⛓️${unit.weak}</span>`);
+    if (unit.shock > 0)      chips.push(`<span class="status-chip shock">⚡${unit.shock}</span>`);
+    if (unit.stagger > 0)    chips.push(`<span class="status-chip stagger">⏳${unit.stagger}</span>`);
+    if (unit.blind > 0)      chips.push(`<span class="status-chip blind">👁️${unit.blind}</span>`);
+    if (unit.ink > 0)        chips.push(`<span class="status-chip ink">🖤${unit.ink}</span>`);
+    if (unit.curse_spore > 0) chips.push(`<span class="status-chip curse_spore">🍄${unit.curse_spore}</span>`);
+    if (unit.hex > 0)        chips.push(`<span class="status-chip hex">🔮${unit.hex}</span>`);
+    if (unit.rust > 0)       chips.push(`<span class="status-chip rust">⚙️${unit.rust}</span>`);
+    if (unit.lag > 0)        chips.push(`<span class="status-chip lag">🌐${unit.lag}</span>`);
+    if (unit.curse_note > 0) chips.push(`<span class="status-chip curse_note">🎵${unit.curse_note}</span>`);
+    if (unit.curse_vow > 0)  chips.push(`<span class="status-chip curse_vow">📜${unit.curse_vow}</span>`);
+    if (unit.doom > 0)       chips.push(`<span class="status-chip doom">☠️${unit.doom}</span>`);
     return chips.join("");
   },
 
@@ -370,24 +408,41 @@ const UI = {
 
     if (b.phase === "player" && this.lastTurnId !== b.turn) {
       this.lastTurnId = b.turn;
-      this.queuedCards = [];
       this.isExecuting = false;
     }
 
     $("#battle-turn-label").textContent = b.phase === "player" ? `TURN ${b.turn} — YOUR MOVE` : "ENEMY TURN...";
     
-    const reservedMana = this.queuedCards.reduce((acc, q) => acc + getCardById(q.id).manaCost, 0);
-    const remainingMana = p.mana - reservedMana;
+    $("#hands-budget").textContent = `HANDS: ${b.handsLeft}`;
+    $("#discards-budget").textContent = `DISC: ${b.discardsLeft}`;
 
-    const btnEnd = $("#btn-end-turn");
-    btnEnd.disabled = b.phase !== "player" || b.over || this.isExecuting;
-    if (this.queuedCards.length > 0) {
-      btnEnd.innerHTML = "PLAY<br>HAND";
-      btnEnd.classList.add("playhand");
-    } else {
-      btnEnd.innerHTML = "END<br>TURN";
-      btnEnd.classList.remove("playhand");
+    const jesterHud = $("#jester-hud");
+    jesterHud.innerHTML = "";
+    for (let i = 0; i < 5; i++) {
+      const slot = document.createElement("div");
+      if (i < b.jesters.length) {
+        const j = getJesterById(b.jesters[i]);
+        slot.className = "jester-slot";
+        slot.title = `${j.name}\n${j.description}`;
+        slot.innerHTML = `🃏`;
+      } else {
+        slot.className = "jester-slot empty";
+      }
+      jesterHud.appendChild(slot);
     }
+
+    const selectionCost = b.selectedCards.reduce((acc, idx) => {
+      const card = resolveCard(b.hand[idx]);
+      return acc + Engine.effectiveCost(card, b.cardUpgrades[b.hand[idx]] || 0);
+    }, 0);
+    const canPlay = b.selectedCards.length > 0 && selectionCost <= p.maxMana && b.handsLeft > 0;
+    const canDiscard = b.selectedCards.length > 0 && b.discardsLeft > 0;
+
+    const btnPlayHand = $("#btn-play-hand");
+    const btnDiscard = $("#btn-discard");
+    
+    btnPlayHand.disabled = b.phase !== "player" || b.over || this.isExecuting || !canPlay;
+    btnDiscard.disabled = b.phase !== "player" || b.over || this.isExecuting || !canDiscard;
 
     const pct = Math.max(0, (p.hp / p.maxHp) * 100);
     const fill = $("#player-hp-fill");
@@ -395,7 +450,7 @@ const UI = {
     fill.classList.toggle("low", pct < 30);
     $("#player-hp-text").textContent = `${p.hp}/${p.maxHp}`;
     $("#player-statuses").innerHTML = this.statusChips(p);
-    $("#mana-text").textContent = `${remainingMana}/${p.maxMana}`;
+    $("#mana-text").textContent = `${p.mana}/${p.maxMana}`;
     $("#draw-count").textContent = `DRAW ${b.drawPile.length}`;
     $("#discard-count").textContent = `DISC ${b.discardPile.length}`;
 
@@ -421,57 +476,49 @@ const UI = {
       row.appendChild(div);
     });
 
-    const queuedRow = $("#queued-cards-row");
-    queuedRow.innerHTML = "";
-    this.queuedCards.forEach((q, qIndex) => {
-      const card = resolveCard(q.id);
-      const el = this.cardEl(card, {
-        upgLevel: b.cardUpgrades[q.id] || 0,
-        onClick: () => {
-          if (this.isExecuting) return;
-          this.queuedCards.splice(qIndex, 1);
-          this.renderBattle();
-        }
-      });
-      el.classList.add("queued-card");
-      queuedRow.appendChild(el);
-    });
-
     const hand = $("#hand");
     hand.innerHTML = "";
-    const queuedIndices = this.queuedCards.map(q => q.originalIndex);
-    const visibleCards = b.hand.map((cardId, i) => ({ cardId, originalIndex: i }))
-                               .filter(item => !queuedIndices.includes(item.originalIndex));
-    const total = visibleCards.length;
+    const total = b.hand.length;
     const maxAngle = Math.min(28, total * 4);
-    visibleCards.forEach((item, i) => {
-      const cardId = item.cardId;
-      const originalIndex = item.originalIndex;
+    
+    b.hand.forEach((cardId, i) => {
       const card = resolveCard(cardId);
       const isCurse = isCurseId(cardId);
-      const playable = !isCurse && remainingMana >= Engine.effectiveCost(card, b.cardUpgrades[cardId] || 0);
+      const isSelected = b.selectedCards.includes(i);
+      const isLagged = b.laggedCardIndices && b.laggedCardIndices.includes(i);
+      
       const el = this.cardEl(card, {
         upgLevel: b.cardUpgrades[cardId] || 0,
+        blinded: p.blind > 0,
+        lagged: isLagged,
         onClick: () => {
-          if (this.isExecuting || isCurse) return;
-          if (playable) {
-            this.queuedCards.push({ id: cardId, originalIndex });
-            this.renderBattle();
-          }
+          if (this.isExecuting || b.phase !== "player" || isCurse || isLagged) return;
+          Engine.toggleSelection(i);
         },
       });
-      if (!playable) el.classList.add("unplayable");
+      
+      if (isCurse || isLagged) el.classList.add("unplayable");
+      if (isSelected) el.classList.add("is-selected");
+      
       const mid = (total - 1) / 2;
       const angle = total > 1 ? ((i - mid) / mid) * (maxAngle / 2) : 0;
       const yOff  = total > 1 ? Math.abs(i - mid) * 6 : 0;
       el.style.setProperty("--fan-angle", `${angle}deg`);
-      el.style.transform = `rotate(${angle}deg) translateY(${yOff}px)`;
+      
+      if (!isSelected) {
+        el.style.transform = `rotate(${angle}deg) translateY(${yOff}px)`;
+      }
+      
       el.addEventListener("mouseenter", () => {
         el.style.transform = `translateY(-32px) scale(1.1)`;
         el.style.zIndex = "20";
       });
       el.addEventListener("mouseleave", () => {
-        el.style.transform = `rotate(${angle}deg) translateY(${yOff}px)`;
+        if (b.selectedCards.includes(i)) {
+          el.style.transform = ""; 
+        } else {
+          el.style.transform = `rotate(${angle}deg) translateY(${yOff}px)`;
+        }
         el.style.zIndex = "";
       });
       hand.appendChild(el);
@@ -1404,13 +1451,14 @@ const UI = {
     }
 
     // Battle
-    $("#btn-end-turn").addEventListener("click", () => {
-      if (this.isExecuting) return;
-      if (this.queuedCards.length > 0) {
-        this.playQueuedHand();
-      } else {
-        Engine.endPlayerTurn();
-      }
+    $("#btn-play-hand").addEventListener("click", () => {
+      if (this.isExecuting || Engine.battle.selectedCards.length === 0) return;
+      Engine.playHand();
+    });
+    
+    $("#btn-discard").addEventListener("click", () => {
+      if (this.isExecuting || Engine.battle.selectedCards.length === 0) return;
+      Engine.discardHand();
     });
 
     // Rewards

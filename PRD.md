@@ -1,10 +1,10 @@
 # Product Requirements Document (PRD)
 # Pixel Spire — Deck-Building Roguelite
 
-**Version:** 1.2.0  
+**Version:** 1.3.0  
 **Author:** Ki Dev
-**Date:** 2026-06-15  
-**Status:** ✅ v1.2.0 Complete — Live on GitHub Pages
+**Date:** 2026-06-16  
+**Status:** ✅ v1.3.0 Complete — Live on GitHub Pages
 
 ---
 
@@ -290,3 +290,5 @@ All scripts use plain `const`/`function` globals (no ES Modules) for GitHub Page
 | 1.0.0 | 2026-06-12 | Initial release — full 3-act campaign, 51 cards, 18 enemies, shop, progression |
 | 1.1.0 | 2026-06-13 | Added Relics, Exhaust mechanic, queued card plays, expanded to 56 cards, shop UI revamp |
 | 1.2.0 | 2026-06-15 | Replaced emoji art with dedicated image assets, added card hand retention, auto-end turn, updated minimum deck size to 10, dynamic mana progression scaling, UI Map navigation improvements |
+| 1.3.0 | 2026-06-16 | Integrated the new 34-enemy roster, procedural encounter weighting & pacing generator (with Anchor/Support, Status/Burst, Turtle/Timer templates and taxer/mitigation caps), 11 new combat status effects, visual card-blinding/lag-locking, and ink intent obfuscation |
+

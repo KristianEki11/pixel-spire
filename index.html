@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PIXEL SPIRE — Deck-Building Roguelite</title>
 <meta name="description" content="Pixel Spire — a retro deck-building roguelite adventure. Battle enemies, collect cards, conquer the spire!">
-<link rel="stylesheet" href="style.css?v=1.1.0">
+<link rel="stylesheet" href="style.css?v=1.3.0">
 </head>
 <body>
 <div id="app">
@@ -65,6 +65,7 @@
       </div>
     </div>
 
+    <div id="jester-hud" class="jester-hud"></div>
     <div id="battle-hud">
       <div class="hud-left">
         <div id="mana-orb" class="mana-orb"><span id="mana-text">3/3</span></div>
@@ -75,7 +76,12 @@
       </div>
       <div id="hand" class="hand"></div>
       <div class="hud-right">
-        <button id="btn-end-turn" class="px-btn big endturn">END<br>TURN</button>
+        <div class="budget-info">
+          <span id="hands-budget" class="pile">HANDS: 3</span>
+          <span id="discards-budget" class="pile">DISC: 3</span>
+        </div>
+        <button id="btn-play-hand" class="px-btn big play-hand-btn">PLAY HAND</button>
+        <button id="btn-discard" class="px-btn discard-btn">DISCARD</button>
       </div>
     </div>
   </section>
@@ -423,14 +429,15 @@
 
 </div><!-- #app -->
 
-<script src="data/cards.js?v=1.2.0"></script>
-<script src="data/curses.js?v=1.2.0"></script>
-<script src="data/enemies.js?v=1.2.0"></script>
-<script src="data/stages.js?v=1.2.0"></script>
-<script src="data/events.js?v=1.2.0"></script>
-<script src="data/relics.js?v=1.2.0"></script>
-<script src="engine.js?v=1.2.0"></script>
-<script src="game.js?v=1.2.0"></script>
-<script src="ui.js?v=1.2.0"></script>
+<script src="data/cards.js?v=1.3.0"></script>
+<script src="data/curses.js?v=1.3.0"></script>
+<script src="data/enemies.js?v=1.3.0"></script>
+<script src="data/stages.js?v=1.3.0"></script>
+<script src="data/events.js?v=1.3.0"></script>
+<script src="data/relics.js?v=1.3.0"></script>
+<script src="data/jesters.js?v=1.3.0"></script>
+<script src="engine.js?v=1.3.0"></script>
+<script src="game.js?v=1.3.0"></script>
+<script src="ui.js?v=1.3.0"></script>
 </body>
 </html>

@@ -238,6 +238,188 @@ const Run = {
   },
   pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
 
+  assignEnemiesToPath(path, act) {
+    const normals = ENEMIES.filter(e => e.act === act && e.class === "normal");
+    const fieldBosses = ENEMIES.filter(e => e.act === act && e.class === "field_boss");
+    const miniBosses = ENEMIES.filter(e => e.act === act && e.class === "mini_boss");
+    const bosses = ENEMIES.filter(e => e.act === act && e.class === "main_boss");
+
+    const isTaxer = (enemy) => {
+      const abStr = (enemy.abilities || []).join(" ");
+      const intentStr = enemy.intents.map(i => i.note || "").join(" ");
+      const combined = (abStr + " " + intentStr).toLowerCase();
+      return combined.includes("reduceplayhands") || combined.includes("reducediscards") || combined.includes("reducemaxmana");
+    };
+
+    const hasThornsOrHeal = (enemy) => {
+      const abStr = (enemy.abilities || []).join(" ");
+      const intentStr = enemy.intents.map(i => i.note || "").join(" ");
+      const combined = (abStr + " " + intentStr).toLowerCase();
+      return combined.includes("thorns") || combined.includes("healperturn");
+    };
+
+    const hasStatus = (enemy) => {
+      const abStr = (enemy.abilities || []).join(" ");
+      const intentStr = enemy.intents.map(i => i.note || "").join(" ");
+      const combined = (abStr + " " + intentStr).toLowerCase();
+      return combined.includes("applystatusonhit");
+    };
+
+    const isHeavyMitigation = (enemy) => {
+      const abStr = (enemy.abilities || []).join(" ");
+      const intentStr = enemy.intents.map(i => i.note || "").join(" ");
+      const combined = (abStr + " " + intentStr).toLowerCase();
+      return combined.includes("damagetakenmultiplier") || combined.includes("thorns") || combined.includes("healperturn");
+    };
+
+    const getEnemyRoles = (enemy) => {
+      const roles = [];
+      const id = enemy.id;
+      if (id === "a1_n02_rebar_sentinel") roles.push("anchor");
+      if (id === "a1_n01_lumen_rat") roles.push("support");
+      if (id === "a1_n03_arc_kite" || id === "a1_n05_signpost_mimic" || id === "a1_n06_graffiti_wisp") roles.push("status");
+      if (id === "a1_n04_brutalist_toad") roles.push("burst", "turtle");
+      if (id === "a1_n06_graffiti_wisp") roles.push("timer");
+
+      if (id === "a2_n01_spore_cache") roles.push("anchor", "turtle");
+      if (id === "a2_n02_cable_leecher") roles.push("support");
+      if (id === "a2_n03_hex_scribe") roles.push("status", "timer");
+      if (id === "a2_n04_ossuary_drone") roles.push("burst");
+      if (id === "a2_n05_tomb_router") roles.push("status");
+      if (id === "a2_n06_static_monk") roles.push("burst");
+
+      if (id === "a3_n02_crown_guardian") roles.push("anchor", "turtle");
+      if (id === "a3_n01_void_titheling") roles.push("support");
+      if (id === "a3_n03_blacklight_oracle") roles.push("status", "timer");
+      if (id === "a3_n04_gilded_thorn_column") roles.push("burst", "turtle");
+      if (id === "a3_n05_mana_reaver") roles.push("burst");
+      if (id === "a3_n06_oathbreaker_mask") roles.push("status");
+      return roles;
+    };
+
+    const hadRecentThornsOrHeal = (pathList, currentIndex) => {
+      for (let idx = Math.max(0, currentIndex - 2); idx < currentIndex; idx++) {
+        const node = pathList[idx];
+        if (node && node.enemies) {
+          for (const enemyId of node.enemies) {
+            const enemy = getEnemyById(enemyId);
+            if (enemy && hasThornsOrHeal(enemy)) return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    let combatIndex = 0;
+
+    for (let i = 0; i < path.length; i++) {
+      const node = path[i];
+      if (node.type === "combat" || node.type === "elite") {
+        if (node.role === "boss") {
+          const bossEnemy = this.pick(bosses);
+          node.enemies = [bossEnemy.id];
+        } else if (node.role === "miniboss") {
+          const minibossEnemy = this.pick(miniBosses);
+          node.enemies = [minibossEnemy.id];
+        } else if (node.type === "elite") {
+          const fieldBoss = this.pick(fieldBosses);
+          node.enemies = [fieldBoss.id];
+        } else {
+          combatIndex++;
+          let count = 2;
+          if (act === 1) {
+            count = combatIndex <= 2 ? 1 : 2;
+          } else if (act === 2) {
+            count = 2;
+          } else {
+            count = Math.random() < 0.3 ? 3 : 2;
+          }
+
+          const pacingActive = hadRecentThornsOrHeal(path, i);
+          let candidatePool = normals.filter(e => {
+            if (pacingActive && hasThornsOrHeal(e)) return false;
+            return true;
+          });
+          if (candidatePool.length === 0) candidatePool = normals.slice();
+
+          let chosen = [];
+          const validateEncounter = (list) => {
+            const taxers = list.filter(isTaxer).length;
+            if (taxers > 1) return false;
+
+            if (act === 2) {
+              const statusSources = list.filter(hasStatus).length;
+              if (statusSources > 2) return false;
+            }
+
+            if (act === 3) {
+              const clamps = list.filter(isTaxer).length;
+              const heavyMit = list.filter(isHeavyMitigation).length;
+              if (clamps + heavyMit > 1) return false;
+            }
+            return true;
+          };
+
+          let templateApplied = false;
+          if (count === 2) {
+            const templates = [
+              ["anchor", "support"],
+              ["status", "burst"],
+              ["turtle", "timer"]
+            ];
+            const shuffledTemplates = this.shuffle(templates);
+            for (const t of shuffledTemplates) {
+              const roleA = t[0];
+              const roleB = t[1];
+              const pairs = [];
+              for (let x = 0; x < candidatePool.length; x++) {
+                for (let y = x + 1; y < candidatePool.length; y++) {
+                  const eA = candidatePool[x];
+                  const eB = candidatePool[y];
+                  const rolesA = getEnemyRoles(eA);
+                  const rolesB = getEnemyRoles(eB);
+                  const match1 = rolesA.includes(roleA) && rolesB.includes(roleB);
+                  const match2 = rolesA.includes(roleB) && rolesB.includes(roleA);
+                  if (match1 || match2) {
+                    if (validateEncounter([eA, eB])) {
+                      pairs.push([eA, eB]);
+                    }
+                  }
+                }
+              }
+              if (pairs.length > 0) {
+                const pickedPair = this.pick(pairs);
+                chosen = pickedPair.map(e => e.id);
+                templateApplied = true;
+                break;
+              }
+            }
+          }
+
+          if (!templateApplied) {
+            let attempts = 0;
+            while (attempts < 50) {
+              const selection = [];
+              for (let c = 0; c < count; c++) {
+                selection.push(this.pick(candidatePool));
+              }
+              if (validateEncounter(selection)) {
+                chosen = selection.map(e => e.id);
+                break;
+              }
+              attempts++;
+            }
+            if (chosen.length === 0) {
+              chosen = Array.from({ length: count }, () => this.pick(normals).id);
+            }
+          }
+
+          node.enemies = chosen;
+        }
+      }
+    }
+  },
+
   /* ============================================================
      generateRun(act) — build the node path for an act.
      Strategy: take the designed stages for the act. Keep the
@@ -287,6 +469,8 @@ const Run = {
     // Pacing pass: avoid two 'event' nodes in a row by swapping with a
     // nearby non-event, non-boss node.
     this.spaceOutEvents(path);
+
+    this.assignEnemiesToPath(path, act);
 
     this.s.run = {
       act,
@@ -353,11 +537,18 @@ const Run = {
 
   /* Resolve the stage object backing a combat/elite node. */
   stageForNode(node) {
-    if (node.stageId) return STAGES.find(st => st.id === node.stageId);
-    // Elite nodes have no designed stage: synthesize one from a normal stage.
-    const normals = STAGES.filter(st => st.act === this.cur().act && st.type === "Normal");
-    const base = this.pick(normals) || STAGES.find(st => st.act === this.cur().act);
-    return base;
+    let base;
+    if (node.stageId) {
+      base = STAGES.find(st => st.id === node.stageId);
+    } else {
+      const normals = STAGES.filter(st => st.act === this.cur().act && st.type === "Normal");
+      base = this.pick(normals) || STAGES.find(st => st.act === this.cur().act);
+    }
+    const clone = JSON.parse(JSON.stringify(base));
+    if (node.enemies) {
+      clone.enemies = node.enemies;
+    }
+    return clone;
   },
 
   /* Build a harder stage clone for an elite encounter. */

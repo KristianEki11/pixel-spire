@@ -313,11 +313,22 @@ html, body {
   padding: 1px 5px;
   background: rgba(15,10,36,.9); border: 2px solid var(--outline);
 }
-.status-chip.armor     { border-color: var(--mana); color: var(--mana); }
-.status-chip.poison    { border-color: #5cd65c; color: #5cd65c; }
-.status-chip.vulnerable{ border-color: var(--hp-red); color: var(--hp-red); }
-.status-chip.weak      { border-color: var(--epic); color: var(--epic); }
-.status-chip.strength  { border-color: var(--gold-bright); color: var(--gold-bright); }
+.status-chip.armor      { border-color: var(--mana); color: var(--mana); }
+.status-chip.poison     { border-color: #5cd65c; color: #5cd65c; }
+.status-chip.vulnerable { border-color: var(--hp-red); color: var(--hp-red); }
+.status-chip.weak       { border-color: var(--epic); color: var(--epic); }
+.status-chip.strength   { border-color: var(--gold-bright); color: var(--gold-bright); }
+.status-chip.shock      { border-color: #facc15; color: #facc15; }
+.status-chip.stagger    { border-color: #fb923c; color: #fb923c; }
+.status-chip.blind      { border-color: #a78bfa; color: #a78bfa; }
+.status-chip.ink        { border-color: #e2e8f0; color: #e2e8f0; }
+.status-chip.curse_spore { border-color: #4ade80; color: #4ade80; }
+.status-chip.hex        { border-color: #ec4899; color: #ec4899; }
+.status-chip.rust       { border-color: #ca8a04; color: #ca8a04; }
+.status-chip.lag        { border-color: #60a5fa; color: #60a5fa; }
+.status-chip.curse_note { border-color: #06b6d4; color: #06b6d4; }
+.status-chip.curse_vow  { border-color: #eab308; color: #eab308; }
+.status-chip.doom       { border-color: #ef4444; color: #ef4444; }
 
 /* Hit flash */
 .unit.hit .sprite { animation: shake .25s; }
@@ -392,14 +403,23 @@ html, body {
   display: flex; flex-direction: column;
   align-items: center; gap: 8px; min-width: 100px;
 }
-.px-btn.endturn {
+.px-btn.play-hand-btn {
   font-size: 14px; padding: 14px 20px;
   background: var(--surface-hi);
   color: var(--gold-bright); border-color: var(--gold-bright);
   box-shadow: 4px 4px 0 #000;
   line-height: 1.2;
+  width: 100%;
 }
-.px-btn.endturn:hover { background: var(--gold-bright); color: #000; }
+.px-btn.play-hand-btn:hover:not(:disabled) { background: var(--gold-bright); color: #000; }
+.px-btn.discard-btn {
+  font-size: 12px; padding: 8px 16px;
+  background: var(--surface-low);
+  color: var(--epic); border-color: var(--epic);
+  box-shadow: 4px 4px 0 #000;
+  width: 100%;
+}
+.px-btn.discard-btn:hover:not(:disabled) { background: var(--epic); color: #000; }
 
 /* Floating Combat Text Container */
 #float-text-container {
@@ -493,6 +513,22 @@ html, body {
 }
 .card.unplayable { opacity: .45; cursor: not-allowed; }
 .card.unplayable:hover { transform: none !important; }
+
+.card .lagged-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 10, 36, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--epic);
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 14px;
+  border: 2px solid var(--epic);
+  z-index: 15;
+  text-shadow: 1px 1px 2px #000;
+}
 
 /* Mana cost — blue hexagon top-left */
 .card .card-cost {
@@ -1146,7 +1182,7 @@ html, body {
 }
 
 .queued-cards-row:empty::before {
-  content: 'CLICK CARDS TO QUEUE FOR PLAYING';
+  content: 'HAND RESOLUTION AREA';
   font-family: 'Space Mono', monospace;
   font-weight: 700;
   font-size: 11px;
@@ -2072,3 +2108,45 @@ html, body {
   box-shadow: 0 0 12px rgba(248, 113, 113, 0.5), 3px 3px 0 #000 !important;
 }
 
+/* ═══════════════════════════════════════════════════════
+   JESTER HUD & COMBAT LOOP STYLES
+══════════════════════════════════════════════════════ */
+.jester-hud {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  z-index: 5;
+}
+.jester-slot {
+  width: 48px; height: 48px;
+  background: rgba(20, 15, 41, 0.85);
+  border: 2px solid var(--border);
+  box-shadow: 2px 2px 0 #000;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  position: relative;
+  cursor: help;
+}
+.jester-slot.empty {
+  opacity: 0.3;
+  border-style: dashed;
+}
+
+.budget-info {
+  display: flex; gap: 8px; margin-bottom: 4px; width: 100%;
+}
+.budget-info .pile {
+  width: 48px; height: auto; padding: 4px;
+  font-size: 9px; line-height: 1.2;
+  background: var(--surface); border-color: var(--text-dim);
+}
+
+.card.is-selected {
+  transform: translateY(-24px) scale(1.05) !important;
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 12px rgba(240, 193, 44, 0.6), 4px 4px 0 #000;
+  z-index: 15;
+}
