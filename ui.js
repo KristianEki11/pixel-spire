@@ -1453,7 +1453,7 @@ const UI = {
     // Battle
     $("#btn-play-hand").addEventListener("click", () => {
       if (this.isExecuting || Engine.battle.selectedCards.length === 0) return;
-      Engine.playHand();
+      this.playSelectedHand();
     });
     
     $("#btn-discard").addEventListener("click", () => {
